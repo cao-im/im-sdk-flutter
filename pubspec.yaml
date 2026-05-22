@@ -1,0 +1,26 @@
+name: cao_im_sdk_flutter
+description: "CAO IM SDK Flutter - 即时通讯Flutter SDK库，支持WebSocket连接、消息收发、会话管理、群组管理等功能"
+version: 1.0.0
+homepage: https://github.com/cao-im/cao_im_sdk_flutter
+
+environment:
+  sdk: ^3.11.3
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  web_socket_channel: ^2.4.0
+  sqflite: ^2.3.0
+  path: ^1.8.0
+  dio: ^5.4.0
+  uuid: ^4.2.1
+  shared_preferences: ^2.2.2
+  logger: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
