@@ -2,7 +2,7 @@ import 'dart:async';
 
 import '../core/connection_manager.dart';
 import '../core/connection_status.dart';
-import '../core/offline_message_sync.dart';
+import '../core/hybrid_message_sync.dart';
 import '../core/reconnect.dart';
 import '../core/user_status_manager.dart';
 import '../event/event_bus.dart';
@@ -12,7 +12,8 @@ import '../model/message.dart';
 import '../model/conversation.dart';
 import '../model/group.dart';
 import '../model/user.dart';
-import '../storage/database_helper.dart';
+import '../storage/storage_factory.dart';
+import '../storage/storage_interface.dart';
 import '../utils/logger.dart';
 import '../service/message_service_impl.dart';
 import '../service/conversation_service_impl.dart';
@@ -74,20 +75,22 @@ class IMClient {
   late String token;
   int? currentUserId;
   bool _isInitialized = false;
+  bool _dbAvailable = true;
   late IMConfig _config;
 
   late ConnectionManager _connectionManager;
   late EventBus _eventBus;
-  late DatabaseHelper _dbHelper;
+  StorageInterface _storage = _FallbackStorage();
 
   late MessageServiceImpl _messageService;
   late ConversationServiceImpl _conversationService;
   late GroupServiceImpl _groupService;
   UserStatusManager? _userStatusManager;
-  OfflineMessageSync? _offlineSync;
+  HybridMessageSync? _hybridSync;
 
   final List<MessageListener> _messageListeners = [];
   final List<ConnectionListener> _connectionListeners = [];
+  final List<FriendRequestListener> _friendRequestListeners = [];
 
   StreamSubscription? _connectionSub;
   StreamSubscription? _messageSub;
@@ -99,19 +102,42 @@ class IMClient {
   GroupServiceImpl get groupService => _groupService;
   UserStatusManager? get userStatusManager => _userStatusManager;
   EventBus get eventBus => _eventBus;
-  DatabaseHelper get database => _dbHelper;
+  StorageInterface get storage => _storage;
   ConnectionManager get connectionManager => _connectionManager;
   IMConfig get config => _config;
   List<MessageListener> get messageListeners =>
       List.unmodifiable(_messageListeners);
 
+  HybridMessageSync? get hybridSync => _hybridSync;
+
+  Future<void> syncOfflineMessages() async {
+    await _hybridSync?.syncNow();
+  }
+
+  SyncMode getCurrentSyncMode() {
+    return _hybridSync?.currentMode ?? SyncMode.realtime;
+  }
+
+  Map<String, dynamic> getSyncDebugInfo() {
+    return _hybridSync?.getDebugInfo() ?? {};
+  }
+
   Future<void> init({required String serverUrl, IMConfig? config}) async {
-    if (_isInitialized) return;
+    print('📍[IMClient] ====== init() 开始 ======');
+    print('📍[IMClient] serverUrl: $serverUrl');
+
+    if (_isInitialized) {
+      print('⚠️[IMClient] 已初始化，跳过');
+      return;
+    }
 
     _config = config ?? _defaultConfig;
 
     final uri = Uri.parse(serverUrl);
+    print('📍[IMClient] 解析URI: scheme=${uri.scheme}, host=${uri.host}, port=${uri.port}, path=${uri.path}');
+
     if (uri.hasPort && uri.port != _expectedPort) {
+      print('❌[IMClient] 端口不匹配: 期望=$_expectedPort, 实际=${uri.port}');
       throw ArgumentError(
         'IM SDK 端口必须为 $_expectedPort，不允许使用其他端口。当前请求端口: ${uri.port}\n\n'
         '========================================\n'
@@ -140,30 +166,48 @@ class IMClient {
     }
 
     this.serverUrl = uri.replace(port: _expectedPort).toString();
-    _connectionManager = ConnectionManager();
-    _eventBus = EventBus();
-    _dbHelper = DatabaseHelper();
-    await _dbHelper.database;
+    print('📍[IMClient] 最终serverUrl: $this.serverUrl');
 
+    print('📍[IMClient] 创建 ConnectionManager...');
+    _connectionManager = ConnectionManager();
+    print('📍[IMClient] 创建 EventBus...');
+    _eventBus = EventBus();
+    print('📍[IMClient] 初始化存储 (自动检测平台)...');
+    try {
+      _storage = await StorageFactory.getInstance();
+      print('✅[IMClient] 存储初始化完成');
+    } catch (e, stack) {
+      print('⚠️[IMClient] 存储初始化失败 (非致命): $e');
+      print('⚠️[IMClient] SDK将以无持久化模式运行');
+      _dbAvailable = false;
+    }
+
+    print('📍[IMClient] 初始化服务 (Message/Group/Conversation)...');
     _initServices();
+    print('✅[IMClient] 服务初始化完成');
+
+    print('📍[IMClient] 设置事件处理器...');
     _setupEventHandlers();
+    print('✅[IMClient] 事件处理器设置完成');
+
     _isInitialized = true;
+    print('✅[IMClient] ====== init() 完成, isInitialized=true ======');
   }
 
   void _initServices() {
     _messageService = MessageServiceImpl(
       connectionManager: _connectionManager,
-      databaseHelper: _dbHelper,
+      databaseHelper: _storage,
       eventBus: _eventBus,
     );
 
     _groupService = GroupServiceImpl(
       connectionManager: _connectionManager,
-      databaseHelper: _dbHelper,
+      databaseHelper: _storage,
       eventBus: _eventBus,
     );
 
-    _conversationService = ConversationServiceImpl();
+    _conversationService = ConversationServiceImpl(dbHelper: _storage);
   }
 
   void _initUserStatusManager() {
@@ -215,19 +259,34 @@ class IMClient {
     });
   }
 
-  Future<void> connect(String userToken) async {
+  Future<void> connect(String userToken, {int? userId}) async {
+    print('');
+    print('📍[IMClient] ====== connect() 开始 ======');
+    print('📍[IMClient] isInitialized: $_isInitialized');
+
     if (!_isInitialized) {
+      print('❌[IMClient] 未初始化，抛出异常');
       throw StateError('IMClient未初始化，请先调用init()方法');
     }
 
     token = userToken;
+    if (userId != null && userId > 0) {
+      currentUserId = userId;
+    }
+    print('📍[IMClient] token已设置, serverUrl: $serverUrl, currentUserId: $currentUserId');
 
     try {
+      print('📍[IMClient] 调用 ConnectionManager.connect(serverUrl, token)...');
       await _connectionManager.connect(serverUrl, token);
+      print('✅[IMClient] ConnectionManager.connect() 返回成功');
 
       if (currentUserId != null) {
+        print('📍[IMClient] 初始化 UserStatusManager 和 HybridSync (微信模式)...');
         _initUserStatusManager();
-        _initOfflineSync();
+        _initHybridSync();
+        print('✅[IMClient] UserStatusManager 和 HybridSync 初始化完成');
+      } else {
+        print('⚠️[IMClient] currentUserId 为空，跳过 UserStatusManager/HybridSync');
       }
 
       if (_reconnectManager == null) {
@@ -242,9 +301,9 @@ class IMClient {
           },
           onReconnectSuccess: () {
             _userStatusManager?.resumeAfterReconnect();
-            if (_offlineSync != null) {
-              _offlineSync!.start();
-              _offlineSync!.syncNow();
+            if (_hybridSync != null) {
+              _hybridSync!.start();
+              _hybridSync!.syncNow();
             }
           },
           onReconnectFailed: () {
@@ -268,7 +327,7 @@ class IMClient {
   }
 
   Future<void> disconnect() async {
-    _stopOfflineSync();
+    _stopHybridSync();
     _connectionManager.disconnect();
     token = '';
     currentUserId = null;
@@ -351,7 +410,47 @@ class IMClient {
   }
 
   Future<List<Conversation>> getConversationList() async {
-    if (currentUserId == null) return [];
+    print('📍[IMClient] 🔍 getConversationList 被调用, currentUserId=$currentUserId');
+
+    // ✅ 如果 currentUserId 为 null，尝试获取所有会话（用于未登录状态）
+    if (currentUserId == null) {
+      print('📍[IMClient] ⚠️ currentUserId 为空，尝试获取所有会话');
+      
+      // 检查 _storage 是否已初始化
+      try {
+        final testCount = await _storage.getUnreadCount(0);
+        print('📍[IMClient] ✅ _storage 已正常工作');
+      } catch (e) {
+        print('📍[IMClient] ❌ _storage 未初始化或出错: $e');
+        // 尝试重新初始化
+        try {
+          _storage = await StorageFactory.getInstance();
+          print('📍[IMClient] 🔄 _storage 重新初始化成功');
+        } catch (e2) {
+          print('📍[IMClient] ❌ _storage 重新初始化也失败: $e2');
+          return [];
+        }
+      }
+
+      // 尝试从存储中获取所有会话（不按 userId 过滤）
+      try {
+        final allConversations = await _storage.getConversations(0);
+        print('📍[IMClient] 📋 从存储获取到 ${allConversations.length} 个会话');
+        
+        if (allConversations.isNotEmpty) {
+          for (final conv in allConversations) {
+            print('📍[IMClient]   - 会话: id=${conv.id}, targetId=${conv.targetId}, type=${conv.targetType.name}');
+          }
+        }
+        
+        return allConversations;
+      } catch (e) {
+        print('📍[IMClient] ❌ 获取会话失败: $e');
+        return [];
+      }
+    }
+    
+    // 正常流程：使用 conversationService
     return _conversationService.getConversationList(currentUserId!);
   }
 
@@ -461,14 +560,23 @@ class IMClient {
       final messageData = data['data'] as Map<String, dynamic>? ?? data;
       final message = Message.fromJson(messageData);
 
-      _dbHelper.insertMessage(message);
-
-      for (var listener in _messageListeners) {
-        listener.onMessageReceived(message);
-      }
-      _eventBus.fire(MessageReceivedEvent(message: message));
-
-      _updateConversationFromMessage(message);
+      // ✅ 先保存到本地存储（确保数据持久化）
+      _storage.insertMessage(message).then((_) {
+        // 保存成功后，再触发事件和更新会话
+        for (var listener in _messageListeners) {
+          listener.onMessageReceived(message);
+        }
+        _eventBus.fire(MessageReceivedEvent(message: message));
+        _updateConversationFromMessage(message);
+      }).catchError((e) {
+        _log.e('[IMClient] 保存收到的消息失败', error: e);
+        // 即使保存失败，也要通知 UI 和更新会话
+        for (var listener in _messageListeners) {
+          listener.onMessageReceived(message);
+        }
+        _eventBus.fire(MessageReceivedEvent(message: message));
+        _updateConversationFromMessage(message);
+      });
     } else if (type == 'read_receipt') {
       _handleReadReceipt(data);
     } else if (type == 'recall_message') {
@@ -478,6 +586,12 @@ class IMClient {
       final userData = data['data'] as Map<String, dynamic>? ?? data;
       final user = User.fromJson(userData);
       _eventBus.fire(UserPresenceEvent(user: user));
+    } else if (type == 'friend_request') {
+      _handleFriendRequest(data);
+    } else if (type == 'friend_accepted') {
+      _handleFriendAccepted(data);
+    } else if (type == 'friend_rejected') {
+      _handleFriendRejected(data);
     }
   }
 
@@ -496,7 +610,7 @@ class IMClient {
       }
 
       for (final msgId in messageIds) {
-        await _dbHelper.updateMessageStatus(msgId, MessageStatus.read);
+        await _storage.updateMessageStatus(msgId, MessageStatus.read);
       }
 
       _eventBus.fire(MessagesReadEvent(messageIds: messageIds));
@@ -526,22 +640,81 @@ class IMClient {
           content: '[消息已撤回]',
         );
 
-        final db = await _dbHelper.database;
-        await db.update(
-          'messages',
-          {
-            'content': recalledMessage.content,
-            'status': recalledMessage.status.value,
-          },
-          where: 'id = ?',
-          whereArgs: [msgId],
-        );
+        await _storage.updateMessageContent(msgId, '[消息已撤回]', MessageStatus.recalled);
 
         _eventBus.fire(MessageRecalledEvent(message: recalledMessage));
         _log.i('收到消息撤回通知, messageId=$msgId');
       }
     } catch (e) {
       _log.e('处理消息撤回通知失败', error: e);
+    }
+  }
+
+  void _handleFriendRequest(Map<String, dynamic> data) {
+    try {
+      final requestData = data['data'] as Map<String, dynamic>? ?? data;
+      final fromId = requestData['fromId'] is int
+          ? requestData['fromId']
+          : int.parse(requestData['fromId'].toString());
+      final toId = requestData['toId'] is int
+          ? requestData['toId']
+          : int.parse(requestData['toId'].toString());
+
+      _log.i('收到好友请求通知: fromId=$fromId, toId=$toId');
+
+      for (var listener in _friendRequestListeners) {
+        listener.onFriendRequestReceived(fromId, toId);
+      }
+
+      _eventBus.fire(FriendRequestEvent(fromId: fromId, toId: toId));
+    } catch (e) {
+      _log.e('处理好友请求通知失败', error: e);
+    }
+  }
+
+  Future<void> _handleFriendAccepted(Map<String, dynamic> data) async {
+    try {
+      final requestData = data['data'] as Map<String, dynamic>? ?? data;
+      final fromId = requestData['fromId'] is int
+          ? requestData['fromId']
+          : int.parse(requestData['fromId'].toString());
+      final toId = requestData['toId'] is int
+          ? requestData['toId']
+          : int.parse(requestData['toId'].toString());
+
+      _log.i('收到好友接受通知: fromId=$fromId (同意者), toId=$toId (你)');
+
+      for (var listener in _friendRequestListeners) {
+        listener.onFriendAccepted(fromId, toId);
+      }
+
+      _eventBus.fire(FriendAcceptedEvent(fromId: fromId, toId: toId));
+
+      await _createFriendConversationAndSystemMessage(fromId, toId, 'accepted');
+    } catch (e) {
+      _log.e('处理好友接受通知失败', error: e);
+    }
+  }
+
+  void _handleFriendRejected(Map<String, dynamic> data) {
+    try {
+      final requestData = data['data'] as Map<String, dynamic>? ?? data;
+      final fromId = requestData['fromId'] is int
+          ? requestData['fromId']
+          : int.parse(requestData['fromId'].toString());
+      final toId = requestData['toId'] is int
+          ? requestData['toId']
+          : int.parse(requestData['toId'].toString());
+
+      _log.i('收到好友拒绝通知: fromId=$fromId (拒绝者), toId=$toId (你)');
+
+      for (var listener in _friendRequestListeners) {
+        listener.onFriendRejected(fromId, toId);
+      }
+
+      _eventBus.fire(FriendRejectedEvent(fromId: fromId, toId: toId));
+    } catch (e) {
+      _log.e('处理好友拒绝通知失败', error: e);
     }
   }
 
@@ -565,6 +738,16 @@ class IMClient {
     _connectionListeners.remove(listener);
   }
 
+  void addFriendRequestListener(FriendRequestListener listener) {
+    if (!_friendRequestListeners.contains(listener)) {
+      _friendRequestListeners.add(listener);
+    }
+  }
+
+  void removeFriendRequestListener(FriendRequestListener listener) {
+    _friendRequestListeners.remove(listener);
+  }
+
   Future<void> reset() async {
     await dispose();
     _instance = null;
@@ -586,37 +769,38 @@ class IMClient {
     _groupService.dispose();
     _userStatusManager?.dispose();
     _userStatusManager = null;
-    _offlineSync?.dispose();
-    _offlineSync = null;
+    _hybridSync?.dispose();
+    _hybridSync = null;
 
     _reconnectManager = null;
     await disconnect();
     _connectionManager.dispose();
     _eventBus.dispose();
-    await _dbHelper.close();
+    await _storage.close();
 
     _messageListeners.clear();
     _connectionListeners.clear();
+    _friendRequestListeners.clear();
     _isInitialized = false;
   }
 
-  void _initOfflineSync() {
+  void _initHybridSync() {
     if (_config.enableOfflineSync) {
-      _offlineSync?.dispose();
-      _offlineSync = OfflineMessageSync(
+      _hybridSync?.dispose();
+      _hybridSync = HybridMessageSync(
         client: this,
-        dbHelper: _dbHelper,
+        dbHelper: _storage,
         eventBus: _eventBus,
       );
-      _offlineSync!.start();
-      _log.i('离线消息同步已初始化，开始首次同步');
-      _offlineSync!.syncNow();
+      _hybridSync!.start();
+      _log.i('🚀 混合消息同步已初始化 (微信模式)，开始首次离线补拉');
+      _hybridSync!.syncNow();
     }
   }
 
-  void _stopOfflineSync() {
-    _offlineSync?.stop();
-    _log.i('离线消息同步已停止');
+  void _stopHybridSync() {
+    _hybridSync?.stop();
+    _log.i('混合消息同步已停止');
   }
 
   Future<void> _updateConversationFromMessage(Message message) async {
@@ -665,4 +849,113 @@ class IMClient {
       _log.e('[IMClient] 更新会话失败', error: e);
     }
   }
+
+  Future<void> _createFriendConversationAndSystemMessage(
+      int friendId, int myId, String status) async {
+    if (currentUserId == null) return;
+
+    try {
+      final conversation = await _conversationService.getOrCreateConversation(
+        userId: currentUserId!,
+        targetType: 1,
+        targetId: friendId,
+      );
+
+      final systemContent = status == 'accepted'
+          ? '你们已成为好友，可以开始聊天了'
+          : '好友请求已被拒绝';
+
+      final systemMessage = Message(
+        fromId: 0,
+        toId: currentUserId!,
+        content: systemContent,
+        msgType: MessageType.system,
+        status: MessageStatus.read,
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      );
+
+      await _storage.insertMessage(systemMessage);
+
+      final updatedConversation = conversation.copyWith(
+        lastMessage: systemMessage,
+        updateTime: DateTime.now().millisecondsSinceEpoch,
+        unreadCount: status == 'accepted' ? conversation.unreadCount + 1 : conversation.unreadCount,
+      );
+
+      if (conversation.id != null) {
+        await _conversationService.updateLastMessage(conversation.id!, systemMessage);
+
+        if (status == 'accepted') {
+          await _conversationService.incrementUnreadCount(
+            conversation.id!,
+            count: 1,
+          );
+        }
+      }
+
+      for (final listener in _messageListeners) {
+        listener.onMessageReceived(systemMessage);
+      }
+      _eventBus.fire(MessageReceivedEvent(message: systemMessage));
+      _eventBus.fire(ConversationUpdatedEvent(conversation: updatedConversation));
+
+      _log.i('已创建好友会话并插入系统消息: friendId=$friendId, content=$systemContent');
+    } catch (e) {
+      _log.e('[IMClient] 创建好友会话失败', error: e);
+    }
+  }
+}
+
+/// ✅ 空实现的回退存储（当真实存储初始化失败时使用）
+class _FallbackStorage implements StorageInterface {
+  @override
+  Future<void> init() async {}
+
+  @override
+  Future<int> insertMessage(Message message) async => 0;
+
+  @override
+  Future<List<Message>> getMessages({
+    required int targetId,
+    int? groupId,
+    int? currentUserId,
+    int page = 1,
+    int size = 20,
+  }) async => [];
+
+  @override
+  Future<Message?> getLastMessage(int targetId, {int? groupId}) async => null;
+
+  @override
+  Future<Message?> getMessageById(int messageId) async => null;
+
+  @override
+  Future<void> updateMessageStatus(int messageId, MessageStatus status) async {}
+
+  @override
+  Future<void> updateMessageContent(int messageId, String content, MessageStatus status) async {}
+
+  @override
+  Future<int> getUnreadCount(int userId) async => 0;
+
+  @override
+  Future<void> markAsRead(int userId, {int? groupId}) async {}
+
+  @override
+  Future<int> insertConversation(Conversation conversation) async => 0;
+
+  @override
+  Future<List<Conversation>> getConversations(int userId) async => [];
+
+  @override
+  Future<void> updateConversation(Conversation conversation) async {}
+
+  @override
+  Future<void> updateUnreadCount(int conversationId, int count) async {}
+
+  @override
+  Future<void> deleteConversation(int conversationId) async {}
+
+  @override
+  Future<void> close() async {}
 }

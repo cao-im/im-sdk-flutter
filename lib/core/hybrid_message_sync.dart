@@ -7,31 +7,32 @@ import '../event/event_bus.dart';
 import '../event/im_event.dart';
 import '../utils/logger.dart';
 import 'message_sync_state.dart';
+import 'connection_status.dart';
 
-class OfflineMessageSync {
+class HybridMessageSync {
   final IMClient _client;
   final StorageInterface _dbHelper;
   final EventBus _eventBus;
 
-  Timer? _syncTimer;
+  SyncMode _currentMode = SyncMode.realtime;
+  Timer? _fallbackTimer;
   bool _isSyncing = false;
-  int? _lastSyncTimestamp;
-  StreamSubscription? _offlineEventSub;
+  StreamSubscription? _connectionSub;
+  StreamSubscription? _messageSub;
   Completer<List<Map<String, dynamic>>>? _currentRequest;
+  int _totalSyncedCount = 0;
+  int _consecutiveErrors = 0;
+  bool _isDisposed = false;
 
-  static const int _syncIntervalMs = 30000;
   static const int _batchSize = 50;
   static const int _requestTimeoutSeconds = 10;
   static const int _maxConsecutiveErrors = 3;
   static const Duration _errorBackoffDelay = Duration(seconds: 5);
-
-  int _consecutiveErrorCount = 0;
-  bool _isDisposed = false;
-  int _totalSyncedCount = 0;
+  static const int _fallbackIntervalMs = 60000;
 
   final Logger _log = AppLogger.instance;
 
-  OfflineMessageSync({
+  HybridMessageSync({
     required IMClient client,
     required StorageInterface dbHelper,
     required EventBus eventBus,
@@ -39,23 +40,89 @@ class OfflineMessageSync {
        _dbHelper = dbHelper,
        _eventBus = eventBus;
 
+  SyncMode get currentMode => _currentMode;
+  bool get isSyncing => _isSyncing;
+  int get totalSyncedCount => _totalSyncedCount;
+
   void start() {
     if (_isDisposed) return;
     stop();
-    _log.i('离线消息同步服务已启动, 同步间隔: ${_syncIntervalMs / 1000}秒');
-    _syncTimer = Timer.periodic(
-      Duration(milliseconds: _syncIntervalMs),
-      (_) => checkAndSync(),
-    );
+    _log.i('🚀 混合消息同步服务已启动 (微信模式)');
+    _setupEventListeners();
+    _switchToRealtimeMode();
   }
 
   void stop() {
-    _syncTimer?.cancel();
-    _syncTimer = null;
-    _offlineEventSub?.cancel();
-    _offlineEventSub = null;
+    _stopFallbackTimer();
+    _connectionSub?.cancel();
+    _connectionSub = null;
+    _messageSub?.cancel();
+    _messageSub = null;
     _currentRequest = null;
-    _log.i('离线消息同步服务已停止');
+    _log.i('混合消息同步服务已停止');
+  }
+
+  void _setupEventListeners() {
+    _connectionSub = _client.connectionManager.onStatusChanged.listen((status) {
+      _handleConnectionStatusChange(status);
+    });
+  }
+
+  void _handleConnectionStatusChange(ConnectionStatus status) {
+    switch (status) {
+      case ConnectionStatus.connected:
+        _log.i('✅ 连接已建立，触发离线消息补拉');
+        _syncOfflineMessages();
+        break;
+      case ConnectionStatus.disconnected:
+        _log.w('⚠️ 连接断开，准备切换到降级模式');
+        _switchToFallbackMode();
+        break;
+      case ConnectionStatus.reconnecting:
+        _log.i('🔄 正在重连...');
+        break;
+      default:
+        break;
+    }
+  }
+
+  void _switchToRealtimeMode() {
+    if (_currentMode == SyncMode.realtime) return;
+    _currentMode = SyncMode.realtime;
+    _stopFallbackTimer();
+    _consecutiveErrors = 0;
+    _log.i('✨ 已切换到实时推送模式 (主通道)');
+    _eventBus.fire(SyncModeChangedEvent(
+      from: _currentMode,
+      to: SyncMode.realtime,
+      reason: 'WebSocket连接正常',
+    ));
+  }
+
+  void _switchToFallbackMode() {
+    if (_currentMode == SyncMode.fallback) return;
+    _currentMode = SyncMode.fallback;
+    _startFallbackTimer();
+    _log.i('⚠️ 已切换到轮询降级模式 (备用通道)');
+    _eventBus.fire(SyncModeChangedEvent(
+      from: SyncMode.realtime,
+      to: SyncMode.fallback,
+      reason: 'WebSocket连接断开',
+    ));
+  }
+
+  void _startFallbackTimer() {
+    _stopFallbackTimer();
+    _fallbackTimer = Timer.periodic(
+      Duration(milliseconds: _fallbackIntervalMs),
+      (_) => _syncOfflineMessages(),
+    );
+    _log.i('⏰ 降级轮询已启动, 间隔: ${_fallbackIntervalMs / 1000}秒');
+  }
+
+  void _stopFallbackTimer() {
+    _fallbackTimer?.cancel();
+    _fallbackTimer = null;
   }
 
   Future<void> syncNow() async {
@@ -63,60 +130,51 @@ class OfflineMessageSync {
       _log.d('跳过同步: disposed=$_isDisposed, syncing=$_isSyncing');
       return;
     }
+    await _syncOfflineMessages();
+  }
+
+  Future<void> _syncOfflineMessages() async {
+    if (_isDisposed || _isSyncing || !_client.isConnected) return;
 
     _isSyncing = true;
     _totalSyncedCount = 0;
 
     try {
-      _log.i('开始离线消息同步...');
+      _log.i('💡 开始离线消息补拉 (微信模式)...');
 
       final syncState = await MessageSyncState.getSyncState();
 
-      final sinceTimestamp = syncState.lastTimestamp ?? _lastSyncTimestamp ?? 0;
+      final sinceTimestamp = syncState.lastTimestamp ?? 0;
       final sinceMessageId = syncState.lastMessageId ?? 0;
 
-      _log.i(
-        '同步参数: sinceTimestamp=$sinceTimestamp, sinceMessageId=$sinceMessageId',
-      );
+      _log.i('📋 同步参数: sinceTimestamp=$sinceTimestamp, sinceMessageId=$sinceMessageId');
 
       await _requestOfflineMessages(
         sinceTimestamp: sinceTimestamp,
         sinceMessageId: sinceMessageId,
       );
 
-      _lastSyncTimestamp = DateTime.now().millisecondsSinceEpoch;
+      await MessageSyncState.updateLastSyncTime(DateTime.now().millisecondsSinceEpoch);
 
-      await MessageSyncState.updateLastSyncTime(_lastSyncTimestamp!);
+      _consecutiveErrors = 0;
 
-      _consecutiveErrorCount = 0;
-
-      _log.i('离线消息同步完成, 共同步 $_totalSyncedCount 条消息');
-      _eventBus.fire(
-        OfflineSyncCompletedEvent(
-          totalSynced: _totalSyncedCount,
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-        ),
-      );
+      _log.i('✅ 离线消息补拉完成, 共同步 $_totalSyncedCount 条消息');
+      _eventBus.fire(OfflineSyncCompletedEvent(
+        totalSynced: _totalSyncedCount,
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      ));
     } on TimeoutException catch (e) {
-      _consecutiveErrorCount++;
-      _log.e(
-        '离线消息同步超时 ($_consecutiveErrorCount/$_maxConsecutiveErrors)',
-        error: e,
-      );
+      _consecutiveErrors++;
+      _log.e('离线消息同步超时 ($_consecutiveErrors/$_maxConsecutiveErrors)', error: e);
       _handleConsecutiveErrors();
     } catch (e) {
-      _consecutiveErrorCount++;
-      _log.e(
-        '离线消息同步失败 ($_consecutiveErrorCount/$_maxConsecutiveErrors)',
-        error: e,
-      );
+      _consecutiveErrors++;
+      _log.e('离线消息同步失败 ($_consecutiveErrors/$_maxConsecutiveErrors)', error: e);
       _handleConsecutiveErrors();
-      _eventBus.fire(
-        OfflineSyncFailedEvent(
-          error: e.toString(),
-          retryCount: _consecutiveErrorCount,
-        ),
-      );
+      _eventBus.fire(OfflineSyncFailedEvent(
+        error: e.toString(),
+        retryCount: _consecutiveErrors,
+      ));
     } finally {
       _isSyncing = false;
       _currentRequest = null;
@@ -124,21 +182,16 @@ class OfflineMessageSync {
   }
 
   void _handleConsecutiveErrors() {
-    if (_consecutiveErrorCount >= _maxConsecutiveErrors) {
+    if (_consecutiveErrors >= _maxConsecutiveErrors) {
       _log.w('连续错误次数已达上限，延长同步间隔');
       stop();
-      Timer(_errorBackoffDelay * _consecutiveErrorCount, () {
+      Timer(_errorBackoffDelay * _consecutiveErrors, () {
         if (!_isDisposed && _client.isConnected) {
           start();
-          _log.i('恢复定时同步');
+          _log.i('恢复同步服务');
         }
       });
     }
-  }
-
-  Future<void> checkAndSync() async {
-    if (!_client.isConnected || _isSyncing || _isDisposed) return;
-    await syncNow();
   }
 
   Future<void> _requestOfflineMessages({
@@ -339,12 +392,20 @@ class OfflineMessageSync {
     }
   }
 
-  bool get isSyncing => _isSyncing;
-  int get totalSyncedCount => _totalSyncedCount;
+  Map<String, dynamic> getDebugInfo() {
+    return {
+      'currentMode': _currentMode.name,
+      'isSyncing': _isSyncing,
+      'totalSyncedCount': _totalSyncedCount,
+      'consecutiveErrors': _consecutiveErrors,
+      'isDisposed': _isDisposed,
+      'isFallbackActive': _fallbackTimer != null,
+    };
+  }
 
   void dispose() {
     _isDisposed = true;
     stop();
-    _log.i('OfflineMessageSync 已释放资源');
+    _log.i('HybridMessageSync 已释放资源');
   }
 }

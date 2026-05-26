@@ -5,13 +5,16 @@ import '../core/connection_manager.dart';
 import '../event/event_bus.dart';
 import '../event/im_event.dart';
 import '../model/message.dart';
-import '../storage/database_helper.dart';
+import '../model/conversation.dart';
+import '../storage/storage_interface.dart';
 import '../utils/logger.dart';
+import '../client/im_client.dart';
+import '../storage/hive/hive_storage.dart';
 import 'message_service.dart';
 
 class MessageServiceImpl implements MessageService {
   final ConnectionManager _connectionManager;
-  final DatabaseHelper _databaseHelper;
+  final StorageInterface _databaseHelper;
   final EventBus _eventBus;
 
   static const int _maxRetryCount = 3;
@@ -30,7 +33,7 @@ class MessageServiceImpl implements MessageService {
 
   MessageServiceImpl({
     required ConnectionManager connectionManager,
-    required DatabaseHelper databaseHelper,
+    required StorageInterface databaseHelper,
     required EventBus eventBus,
   }) : _connectionManager = connectionManager,
        _databaseHelper = databaseHelper,
@@ -85,6 +88,13 @@ class MessageServiceImpl implements MessageService {
     final messageId = await _saveMessageToLocal(message);
     final savedMessage = message.copyWith(id: messageId);
 
+    // ✅ 自动创建或更新会话
+    await _saveOrUpdateConversation(
+      targetId: toId,
+      targetType: TargetType.private,
+      lastMessage: savedMessage,
+    );
+
     final dedupKey = _generateDedupKey(savedMessage);
     if (_isDuplicate(dedupKey)) {
       _log.w('检测到重复消息，跳过发送: $dedupKey');
@@ -133,6 +143,13 @@ class MessageServiceImpl implements MessageService {
 
     final messageId = await _saveMessageToLocal(message);
     final savedMessage = message.copyWith(id: messageId);
+
+    // ✅ 自动创建或更新群组会话
+    await _saveOrUpdateConversation(
+      targetId: groupId,
+      targetType: TargetType.group,
+      lastMessage: savedMessage,
+    );
 
     final dedupKey = _generateDedupKey(savedMessage);
     if (_isDuplicate(dedupKey)) {
@@ -238,6 +255,7 @@ class MessageServiceImpl implements MessageService {
       final messages = await _databaseHelper.getMessages(
         targetId: targetId,
         groupId: groupId,
+        currentUserId: _getCurrentUserId(),
         page: page,
         size: size,
       );
@@ -252,33 +270,7 @@ class MessageServiceImpl implements MessageService {
   @override
   Future<Message?> getMessage(int messageId) async {
     try {
-      final db = await _databaseHelper.database;
-      final maps = await db.query(
-        'messages',
-        where: 'id = ?',
-        whereArgs: [messageId],
-        limit: 1,
-      );
-
-      if (maps.isEmpty) {
-        _log.d('未找到消息: $messageId');
-        return null;
-      }
-
-      final map = maps.first;
-      final message = Message.fromJson({
-        'id': map['id'],
-        'fromId': map['from_id'],
-        'toId': map['to_id'],
-        'groupId': map['group_id'],
-        'content': map['content'],
-        'msgType': map['msg_type'],
-        'status': map['status'],
-        'timestamp': map['timestamp'],
-        'localPath': map['local_path'],
-      });
-
-      return message;
+      return await _databaseHelper.getMessageById(messageId);
     } catch (e) {
       _log.e('获取消息失败, messageId=$messageId', error: e);
       return null;
@@ -290,32 +282,20 @@ class MessageServiceImpl implements MessageService {
     _log.i('获取未读消息, userId=$userId');
 
     try {
-      final db = await _databaseHelper.database;
-      final maps = await db.query(
-        'messages',
-        where: 'to_id = ? AND status < ?',
-        whereArgs: [userId, MessageStatus.read.value],
-        orderBy: 'timestamp ASC',
+      final allMessages = await _databaseHelper.getMessages(
+        targetId: userId,
+        currentUserId: userId,
+        size: 1000,
       );
 
-      final messages = maps
-          .map(
-            (map) => Message.fromJson({
-              'id': map['id'],
-              'fromId': map['from_id'],
-              'toId': map['to_id'],
-              'groupId': map['group_id'],
-              'content': map['content'],
-              'msgType': map['msg_type'],
-              'status': map['status'],
-              'timestamp': map['timestamp'],
-              'localPath': map['local_path'],
-            }),
-          )
+      final unreadMessages = allMessages
+          .where((m) => m.status == MessageStatus.sending ||
+                     m.status == MessageStatus.sent ||
+                     m.status == MessageStatus.delivered)
           .toList();
 
-      _log.i('获取到 ${messages.length} 条未读消息');
-      return messages;
+      _log.i('获取到 ${unreadMessages.length} 条未读消息');
+      return unreadMessages;
     } catch (e) {
       _log.e('获取未读消息失败', error: e);
       rethrow;
@@ -393,18 +373,69 @@ class MessageServiceImpl implements MessageService {
     }
   }
 
+  /// ✅ 自动创建或更新会话
+  /// 发送消息时自动调用，确保会话列表始终与消息同步
+  Future<void> _saveOrUpdateConversation({
+    required int targetId,
+    required TargetType targetType,
+    required Message lastMessage,
+  }) async {
+    try {
+      final currentUserId = _getCurrentUserId();
+
+      // ✅ 直接调用 HiveStorage 的新方法（更可靠）
+      if (_databaseHelper is HiveStorage) {
+        await (_databaseHelper as HiveStorage).updateLastMessageByTarget(
+          targetId: targetId,
+          targetType: targetType.value,
+          userId: currentUserId,
+          lastMessage: lastMessage,
+        );
+      } else {
+        // 回退：使用旧的查找+更新逻辑
+        final existingConversations = await _databaseHelper.getConversations(currentUserId);
+
+        Conversation? existingConv;
+        for (final conv in existingConversations) {
+          if (conv.targetId == targetId && conv.targetType == targetType) {
+            existingConv = conv;
+            break;
+          }
+        }
+
+        final now = DateTime.now().millisecondsSinceEpoch;
+
+        if (existingConv != null) {
+          final updatedConv = existingConv.copyWith(
+            lastMessage: lastMessage,
+            updateTime: now,
+          );
+          await _databaseHelper.updateConversation(updatedConv);
+          _log.d('会话已更新, conversationId=${existingConv.id}, targetId=$targetId');
+        } else {
+          final newConversation = Conversation(
+            userId: currentUserId,
+            targetType: targetType,
+            targetId: targetId,
+            lastMessage: lastMessage,
+            unreadCount: 0,
+            updateTime: now,
+          );
+          final conversationId = await _databaseHelper.insertConversation(newConversation);
+          _log.d('新会话已创建, conversationId=$conversationId, targetId=$targetId');
+        }
+      }
+    } catch (e) {
+      _log.e('创建/更新会话失败, targetId=$targetId', error: e);
+    }
+  }
+
   Future<void> _updateMessageInDb(Message message) async {
     try {
-      final db = await _databaseHelper.database;
-      await db.update(
-        'messages',
-        {
-          'content': message.content,
-          'status': message.status.value,
-          'timestamp': message.timestamp,
-        },
-        where: 'id = ?',
-        whereArgs: [message.id],
+      await _databaseHelper.updateMessageContent(
+        message.id!,
+        message.content,
+        message.status,
       );
     } catch (e) {
       _log.e('更新消息状态失败, messageId=${message.id}', error: e);
@@ -479,6 +510,27 @@ class MessageServiceImpl implements MessageService {
     _sentMessageIds.add(dedupKey);
 
     _eventBus.fire(MessageSentEvent(message: sentMessage));
+    
+    // ✅ 触发会话更新事件（通知 UI 刷新会话列表）
+    try {
+      final currentUserId = _getCurrentUserId();
+      final targetId = sentMessage.toId > 0 ? sentMessage.toId : (sentMessage.groupId ?? 0);
+      // 重新从数据库获取最新的会话数据
+      final conversations = await _databaseHelper.getConversations(currentUserId ?? 0);
+      if (conversations.isNotEmpty) {
+        // 找到目标会话并触发事件
+        for (final conv in conversations) {
+          if (conv.targetId == targetId) {
+            _eventBus.fire(ConversationUpdatedEvent(conversation: conv));
+            _log.d('已触发 ConversationUpdatedEvent, targetId=$targetId');
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      _log.w('触发 ConversationUpdatedEvent 失败: $e');
+    }
+    
     _log.i('消息发送成功, messageId=${message.id}');
   }
 
@@ -528,6 +580,14 @@ class MessageServiceImpl implements MessageService {
   }
 
   int _getCurrentUserId() {
+    // ✅ 优先使用 IMClient 的 currentUserId（确保一致性）
+    final clientUserId = IMClient.instance.currentUserId;
+    if (clientUserId != null && clientUserId > 0) {
+      return clientUserId;
+    }
+    
+    // 回退：使用时间戳生成（仅用于未登录状态）
+    _log.w('currentUserId 为空，使用时间戳作为临时 ID');
     return DateTime.now().millisecondsSinceEpoch ~/ 10000000;
   }
 

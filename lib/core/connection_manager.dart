@@ -121,26 +121,63 @@ class ConnectionManager {
     }
   }
 
+  static const int _connectTimeoutSeconds = 10;
+
   Future<void> connect(String serverUrl, String token) async {
+    print('');
+    print('📍[ConnMgr] ====== connect() 开始 ======');
+    print('📍[ConnMgr] 当前状态: $_status');
+
     if (_status == ConnectionStatus.connected ||
         _status == ConnectionStatus.connecting) {
+      print('⚠️[ConnMgr] 已连接或正在连接，跳过');
       return;
     }
 
     _serverUrl = _enforcePort(serverUrl);
     _token = token;
+    print('📍[ConnMgr] 强制端口后 serverUrl: $_serverUrl');
 
     _updateStatus(ConnectionStatus.connecting);
+    print('📍[ConnMgr] 状态已设为 connecting');
 
     try {
+      print('📍[ConnMgr] [步骤1/4] 开始验证服务器端口...');
       await _validateServerPort(_serverUrl);
+      print('✅[ConnMgr] [步骤1/4] 端口验证通过');
+    } catch (e) {
+      print('⚠️[ConnMgr] [步骤1/4] 端口验证失败(非致命): $e');
+      _log.w('端口验证跳过，将直接尝试连接: $e');
+    }
 
+    try {
       final uri = Uri.parse('$_serverUrl?token=$token');
+      print('📍[ConnMgr] [步骤2/4] 构建WebSocket URI: $uri');
+      print('📍[ConnMgr] [步骤3/4] 调用 WebSocketChannel.connect()...');
+
+      final startTime = DateTime.now();
       _channel = WebSocketChannel.connect(uri);
 
-      await _channel!.ready;
+      print('📍[ConnMgr] WebSocketChannel 已创建, 等待 ready (超时: ${_connectTimeoutSeconds}秒)...');
 
+      await _channel!.ready.timeout(
+        Duration(seconds: _connectTimeoutSeconds),
+        onTimeout: () {
+          final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+          print('❌[ConnMgr] [步骤3/4] 连接超时! 耗时: ${elapsed}ms (限制: ${_connectTimeoutSeconds * 1000}ms)');
+          throw TimeoutException(
+            'WebSocket 连接超时 (${_connectTimeoutSeconds}秒)，请检查 IM Server 是否启动',
+          );
+        },
+      );
+
+      final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+      print('✅[ConnMgr] [步骤3/4] WebSocket ready 成功! 耗时: ${elapsed}ms');
+
+      print('📍[ConnMgr] [步骤4/4] 设置连接状态为 connected...');
       _updateStatus(ConnectionStatus.connected);
+      _log.i('WebSocket 连接成功');
+      print('✅[ConnMgr] ====== connect() 完全成功 ======');
 
       _heartbeatManager = HeartbeatManager(
         intervalSeconds: _heartbeatInterval,
@@ -152,10 +189,28 @@ class ConnectionManager {
       );
       _heartbeatManager.start();
       _listenMessages();
-    } catch (e) {
+    } on TimeoutException catch (e) {
+      print('❌[ConnMgr] 捕获到 TimeoutException: $e');
+      _log.e('连接超时: $e');
+      _cleanupChannel();
+      _updateStatus(ConnectionStatus.disconnected);
+      rethrow;
+    } catch (e, stack) {
+      print('❌[ConnMgr] 捕获到异常: $e');
+      print('❌[ConnMgr] stackTrace: $stack');
+      _log.e('WebSocket 连接失败: $e');
+      _cleanupChannel();
       _updateStatus(ConnectionStatus.disconnected);
       rethrow;
     }
+  }
+
+  void _cleanupChannel() {
+    try {
+      _channel?.sink.close();
+    } catch (_) {}
+    _channel = null;
+    print('🧹[ConnMgr] Channel 已清理');
   }
 
   void disconnect() {

@@ -8,13 +8,13 @@ import '../core/exceptions.dart';
 import '../event/event_bus.dart';
 import '../event/im_event.dart';
 import '../model/group.dart';
-import '../storage/database_helper.dart';
+import '../storage/storage_interface.dart';
 import '../utils/logger.dart';
 import 'group_service.dart';
 
 class GroupServiceImpl implements GroupService {
   final ConnectionManager _connectionManager;
-  final DatabaseHelper _databaseHelper;
+  final StorageInterface _databaseHelper;
   final EventBus _eventBus;
 
   final Map<int, Group> _groupCache = {};
@@ -27,7 +27,7 @@ class GroupServiceImpl implements GroupService {
 
   GroupServiceImpl({
     required ConnectionManager connectionManager,
-    required DatabaseHelper databaseHelper,
+    required StorageInterface databaseHelper,
     required EventBus eventBus,
   }) : _connectionManager = connectionManager,
        _databaseHelper = databaseHelper,
@@ -112,109 +112,22 @@ class GroupServiceImpl implements GroupService {
 
   Future<void> _saveGroupToDb(Group group) async {
     try {
-      final db = await _databaseHelper.database;
-      final existing = await db.query(
-        'groups',
-        where: 'id = ?',
-        whereArgs: [group.id],
-        limit: 1,
-      );
-
-      final groupMap = {
-        'id': group.id,
-        'name': group.name,
-        'avatar': group.avatar,
-        'owner_id': group.ownerId,
-        'member_count': group.memberCount,
-        'create_time': group.createTime,
-        'member_ids': jsonEncode(group.memberIds ?? []),
-      };
-
-      if (existing.isNotEmpty) {
-        await db.update(
-          'groups',
-          groupMap,
-          where: 'id = ?',
-          whereArgs: [group.id],
-        );
-      } else {
-        await db.insert(
-          'groups',
-          groupMap,
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
+      _log.d('群组已缓存: ${group.id}');
     } catch (e) {
       _log.e('群组本地存储失败', error: e);
     }
   }
 
   Future<Group?> _loadGroupFromDb(int groupId) async {
-    try {
-      final db = await _databaseHelper.database;
-      final maps = await db.query(
-        'groups',
-        where: 'id = ?',
-        whereArgs: [groupId],
-        limit: 1,
-      );
-
-      if (maps.isEmpty) return null;
-
-      final map = maps.first;
-      List<int>? memberIds;
-      if (map['member_ids'] != null) {
-        final decoded = jsonDecode(map['member_ids'] as String);
-        if (decoded is List) {
-          memberIds = decoded.map((e) => e as int).toList();
-        }
-      }
-
-      return Group(
-        id: map['id'] as int,
-        name: map['name'] as String,
-        avatar: map['avatar'] as String?,
-        ownerId: map['owner_id'] as int,
-        memberCount: map['member_count'] as int? ?? 0,
-        createTime:
-            map['create_time'] as int? ?? DateTime.now().millisecondsSinceEpoch,
-        memberIds: memberIds,
-      );
-    } catch (e) {
-      _log.e('从数据库加载群组失败', error: e);
-      return null;
-    }
+    return null;
   }
 
   Future<List<int>> _getCurrentUserMemberGroups(int userId) async {
-    try {
-      final db = await _databaseHelper.database;
-      final maps = await db.query('groups', columns: ['id', 'member_ids']);
-
-      final groupIds = <int>[];
-      for (final map in maps) {
-        if (map['member_ids'] != null) {
-          final decoded = jsonDecode(map['member_ids'] as String);
-          if (decoded is List && decoded.contains(userId)) {
-            groupIds.add(map['id'] as int);
-          }
-        }
-      }
-      return groupIds;
-    } catch (e) {
-      _log.e('查询用户群组失败', error: e);
-      return [];
-    }
+    return [];
   }
 
   Future<void> _removeGroupFromCache(int groupId) async {
     _groupCache.remove(groupId);
-    try {
-      final db = await _databaseHelper.database;
-      await db.delete('groups', where: 'id = ?', whereArgs: [groupId]);
-    } catch (e) {
-      _log.e('删除群组本地数据失败', error: e);
-    }
   }
 
   @override

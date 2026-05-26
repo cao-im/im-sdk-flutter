@@ -28,3 +28,9 @@ abstract class GroupListener {
   void onMemberJoined(int groupId, int userId);
   void onMemberLeft(int groupId, int userId);
 }
+
+abstract class FriendRequestListener {
+  void onFriendRequestReceived(int fromId, int toId);
+  void onFriendAccepted(int fromId, int toId) {}
+  void onFriendRejected(int fromId, int toId) {}
+}

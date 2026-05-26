@@ -1,7 +1,8 @@
 enum MessageType {
   text(0),
   image(1),
-  file(2);
+  file(2),
+  system(99);
 
   final int value;
   const MessageType(this.value);

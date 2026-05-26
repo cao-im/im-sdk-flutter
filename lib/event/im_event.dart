@@ -119,6 +119,39 @@ class MemberMutedEvent extends GroupEvent {
   MemberMutedEvent({required super.group, required this.userId, required this.isMuted});
 }
 
+class FriendRequestEvent extends IMEvent {
+  final int fromId;
+  final int toId;
+
+  FriendRequestEvent({
+    required this.fromId,
+    required this.toId,
+    super.timestamp,
+  });
+}
+
+class FriendAcceptedEvent extends IMEvent {
+  final int fromId;
+  final int toId;
+
+  FriendAcceptedEvent({
+    required this.fromId,
+    required this.toId,
+    super.timestamp,
+  });
+}
+
+class FriendRejectedEvent extends IMEvent {
+  final int fromId;
+  final int toId;
+
+  FriendRejectedEvent({
+    required this.fromId,
+    required this.toId,
+    super.timestamp,
+  });
+}
+
 class OfflineMessagesEvent extends IMEvent {
   final List<Map<String, dynamic>> messages;
 
@@ -140,4 +173,23 @@ class OfflineSyncFailedEvent extends IMEvent {
     required this.retryCount,
     super.timestamp,
   });
+}
+
+class SyncModeChangedEvent extends IMEvent {
+  final SyncMode from;
+  final SyncMode to;
+  final String reason;
+
+  SyncModeChangedEvent({
+    required this.from,
+    required this.to,
+    required this.reason,
+    super.timestamp,
+  });
+}
+
+enum SyncMode {
+  realtime,
+  offline,
+  fallback,
 }

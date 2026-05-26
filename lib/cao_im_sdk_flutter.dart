@@ -20,5 +20,6 @@ export 'event/event_bus.dart';
 export 'event/event_listener.dart';
 export 'event/im_event.dart';
 
-export 'storage/database_helper.dart';
+export 'storage/storage_interface.dart';
+export 'storage/storage_factory.dart';
 export 'utils/logger.dart';
