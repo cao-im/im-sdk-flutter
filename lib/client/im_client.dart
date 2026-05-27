@@ -53,7 +53,7 @@ class IMConfig {
 }
 
 class IMClient {
-  static const int _expectedPort = 80;
+  static const int _defaultPort = 8080;
 
   static IMClient? _instance;
   static IMConfig _defaultConfig = const IMConfig();
@@ -136,36 +136,15 @@ class IMClient {
     final uri = Uri.parse(serverUrl);
     print('📍[IMClient] 解析URI: scheme=${uri.scheme}, host=${uri.host}, port=${uri.port}, path=${uri.path}');
 
-    if (uri.hasPort && uri.port != _expectedPort) {
-      print('❌[IMClient] 端口不匹配: 期望=$_expectedPort, 实际=${uri.port}');
-      throw ArgumentError(
-        'IM SDK 端口必须为 $_expectedPort，不允许使用其他端口。当前请求端口: ${uri.port}\n\n'
-        '========================================\n'
-        '曹操IM (Cao-IM) SDK 端口安全限制\n'
-        '========================================\n\n'
-        '服务端端口已硬编码锁定，此设计目的:\n'
-        '1. 确保客户端与服务端端口一致\n'
-        '2. 防止配置错误导致连接失败\n'
-        '3. 简化部署流程，减少配置项\n\n'
-        '正确用法:\n'
-        '  ✅ IMClient().init(serverUrl: \'ws://your-server.com/api/ws\');\n'
-        '  ✅ IMClient().init(serverUrl: \'ws://your-server.com:$_expectedPort/api/ws\');\n\n'
-        '错误用法:\n'
-        '  ❌ IMClient().init(serverUrl: \'ws://your-server.com:9090/api/ws\');\n'
-        '  ❌ IMClient().init(serverUrl: \'ws://your-server.com:8081/api/ws\');\n\n'
-        '如需更改端口（需要修改源码并重新编译）:\n'
-        '- 服务端: ImServerApplication.java -> FORCED_PORT\n'
-        '- 服务端: PortBindingValidator.java -> EXPECTED_PORT\n'
-        '- SDK: im_client.dart -> _expectedPort\n'
-        '- SDK: connection_manager.dart -> _expectedPort\n\n'
-        '⚠️ 重要提示:\n'
-        '即使修改了源码，SDK 连接时还会进行运行时验证。\n'
-        '如果服务端端口与 SDK 不匹配，连接将被拒绝。\n'
-        '这是协议级别的保护，不仅仅是代码层面的限制。',
-      );
+    // 端口可自由配置，不再强制限制
+    int resolvedPort = uri.hasPort ? uri.port : _defaultPort;
+    if (!uri.hasPort) {
+      print('💡[IMClient] 未指定端口，使用默认端口: $_defaultPort');
+    } else {
+      print('✅[IMClient] 使用指定端口: $resolvedPort');
     }
 
-    this.serverUrl = uri.replace(port: _expectedPort).toString();
+    this.serverUrl = uri.replace(port: resolvedPort).toString();
     print('📍[IMClient] 最终serverUrl: $this.serverUrl');
 
     print('📍[IMClient] 创建 ConnectionManager...');

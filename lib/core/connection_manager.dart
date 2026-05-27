@@ -9,8 +9,8 @@ import 'connection_status.dart';
 import 'heartbeat.dart';
 
 class ConnectionManager {
-  static const int _defaultPort = 80;
-  static const String _buildSignature = 'CAOIM-2024-80-LOCKED';
+  static const int _defaultPort = 8080;
+  static const String _buildSignature = 'CAOIM-2024-OPEN-SOURCE';
 
   WebSocketChannel? _channel;
   ConnectionStatus _status = ConnectionStatus.disconnected;
@@ -39,9 +39,10 @@ class ConnectionManager {
     final uri = Uri.parse(serverUrl);
     final port = _customPort ?? (uri.hasPort ? uri.port : _defaultPort);
 
-    if (uri.hasPort && uri.port != _defaultPort && _customPort == null) {
-      _log.w('使用非标准端口 ${uri.port}（推荐端口: $_defaultPort）');
-      _log.w('这可能导致与服务端配置不兼容');
+    if (uri.hasPort && _customPort == null) {
+      _log.i('使用指定端口: ${uri.port}');
+    } else if (!uri.hasPort && _customPort == null) {
+      _log.i('未指定端口，使用默认端口: $_defaultPort');
     }
 
     return uri.replace(port: port).toString();
@@ -75,15 +76,17 @@ class ConnectionManager {
         _serverPortInfo = data;
 
         final serverPort = data['port'] as int;
-        final expectedPort = data['expectedPort'] as int;
-        final isLocked = data['isPortLocked'] as bool;
+        final configuredPort = data['configuredPort'] as int;
+        final isMatched = data['isPortMatched'] as bool;
         final buildSignature = data['buildSignature'] as String?;
-        final warning = data['warning'] as String?;
+        final portConfigurable = data['portConfigurable'] as bool? ?? false;
+        final note = data['note'] as String?;
 
         _log.i('服务端端口信息获取成功');
         _log.i('- 服务端口: $serverPort');
-        _log.i('- 预期端口: $expectedPort');
-        _log.i('- 端口锁定状态: ${isLocked ? "已锁定" : "已修改"}');
+        _log.i('- 配置端口: $configuredPort');
+        _log.i('- 端口匹配: ${isMatched ? "是" : "否"}');
+        _log.i('- 端口可配置: ${portConfigurable ? "是" : "否"}');
 
         if (buildSignature != null && buildSignature != _buildSignature) {
           _log.w('构建签名不匹配!');
@@ -91,19 +94,14 @@ class ConnectionManager {
           _log.w('服务端实际: $buildSignature');
         }
 
-        if (warning != null) {
-          _log.w('服务端警告: $warning');
+        if (note != null) {
+          _log.i('服务端提示: $note');
         }
 
-        if (!isLocked || serverPort != _defaultPort) {
-          _log.w('服务端端口配置与 SDK 默认值不匹配');
-          _log.w('- SDK 默认端口: $_defaultPort');
-          _log.w('- 服务端实际端口: $serverPort');
-          _log.w('- 服务端预期端口: $expectedPort');
-          if (warning != null) {
-            _log.w('- 服务端警告: $warning');
-          }
-          _log.w('将继续连接，但可能出现兼容性问题');
+        if (!isMatched) {
+          _log.w('服务端端口与请求端口不完全匹配');
+          _log.w('- 请求端口可能与服务端配置端口不同');
+          _log.w('- 这通常不影响连接（端口可自由配置）');
         }
 
         _log.i('服务端端口验证通过，可以安全连接');
