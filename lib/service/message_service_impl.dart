@@ -9,7 +9,6 @@ import '../model/conversation.dart';
 import '../storage/storage_interface.dart';
 import '../utils/logger.dart';
 import '../client/im_client.dart';
-import '../storage/hive/hive_storage.dart';
 import 'message_service.dart';
 
 class MessageServiceImpl implements MessageService {
@@ -374,7 +373,6 @@ class MessageServiceImpl implements MessageService {
   }
 
   /// ✅ 自动创建或更新会话
-  /// 发送消息时自动调用，确保会话列表始终与消息同步
   Future<void> _saveOrUpdateConversation({
     required int targetId,
     required TargetType targetType,
@@ -383,29 +381,19 @@ class MessageServiceImpl implements MessageService {
     try {
       final currentUserId = _getCurrentUserId();
 
-      // ✅ 直接调用 HiveStorage 的新方法（更可靠）
-      if (_databaseHelper is HiveStorage) {
-        await (_databaseHelper as HiveStorage).updateLastMessageByTarget(
-          targetId: targetId,
-          targetType: targetType.value,
-          userId: currentUserId,
-          lastMessage: lastMessage,
-        );
-      } else {
-        // 回退：使用旧的查找+更新逻辑
-        final existingConversations = await _databaseHelper.getConversations(currentUserId);
+      final existingConversations = await _databaseHelper.getConversations(currentUserId);
 
-        Conversation? existingConv;
-        for (final conv in existingConversations) {
-          if (conv.targetId == targetId && conv.targetType == targetType) {
-            existingConv = conv;
-            break;
-          }
+      Conversation? existingConv;
+      for (final conv in existingConversations) {
+        if (conv.targetId == targetId && conv.targetType == targetType) {
+          existingConv = conv;
+          break;
         }
+      }
 
-        final now = DateTime.now().millisecondsSinceEpoch;
+      final now = DateTime.now().millisecondsSinceEpoch;
 
-        if (existingConv != null) {
+      if (existingConv != null) {
           final updatedConv = existingConv.copyWith(
             lastMessage: lastMessage,
             updateTime: now,
@@ -424,7 +412,6 @@ class MessageServiceImpl implements MessageService {
           final conversationId = await _databaseHelper.insertConversation(newConversation);
           _log.d('新会话已创建, conversationId=$conversationId, targetId=$targetId');
         }
-      }
     } catch (e) {
       _log.e('创建/更新会话失败, targetId=$targetId', error: e);
     }
