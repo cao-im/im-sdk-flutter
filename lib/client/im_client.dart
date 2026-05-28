@@ -4,7 +4,6 @@ import '../core/connection_manager.dart';
 import '../core/connection_status.dart';
 import '../core/hybrid_message_sync.dart';
 import '../core/reconnect.dart';
-import '../core/user_status_manager.dart';
 import '../event/event_bus.dart';
 import '../event/event_listener.dart';
 import '../event/im_event.dart';
@@ -104,7 +103,6 @@ class IMClient {
   late MessageServiceImpl _messageService;
   late ConversationServiceImpl _conversationService;
   late GroupServiceImpl _groupService;
-  UserStatusManager? _userStatusManager;
   HybridMessageSync? _hybridSync;
 
   /// 已读回执管理器（支持断网缓存+重连补发）
@@ -122,7 +120,6 @@ class IMClient {
   MessageServiceImpl get messageService => _messageService;
   ConversationServiceImpl get conversationService => _conversationService;
   GroupServiceImpl get groupService => _groupService;
-  UserStatusManager? get userStatusManager => _userStatusManager;
   EventBus get eventBus => _eventBus;
   StorageInterface get storage => _storage;
   ConnectionManager get connectionManager => _connectionManager;
@@ -211,16 +208,6 @@ class IMClient {
     _conversationService = ConversationServiceImpl(dbHelper: _storage);
   }
 
-  void _initUserStatusManager() {
-    _userStatusManager?.dispose();
-    _userStatusManager = UserStatusManager(
-      connectionManager: _connectionManager,
-      eventBus: _eventBus,
-      currentUserId: currentUserId!,
-    );
-    _userStatusManager!.init();
-  }
-
   void _setupEventHandlers() {
     _connectionSub = _connectionManager.onStatusChanged.listen((status) {
       switch (status) {
@@ -285,12 +272,11 @@ class IMClient {
       print('✅[IMClient] ConnectionManager.connect() 返回成功');
 
       if (currentUserId != null) {
-        print('📍[IMClient] 初始化 UserStatusManager 和 HybridSync (微信模式)...');
-        _initUserStatusManager();
+        print('📍[IMClient] 初始化 HybridSync (微信模式)...');
         _initHybridSync();
-        print('✅[IMClient] UserStatusManager 和 HybridSync 初始化完成');
+        print('✅[IMClient] HybridSync 初始化完成');
       } else {
-        print('⚠️[IMClient] currentUserId 为空，跳过 UserStatusManager/HybridSync');
+        print('⚠️[IMClient] currentUserId 为空，跳过 HybridSync');
       }
 
       if (_reconnectManager == null) {
@@ -313,7 +299,6 @@ class IMClient {
           },
           onReconnectSuccess: () {
             print('✅[IMClient] ReconnectManager 重连成功回调');
-            _userStatusManager?.resumeAfterReconnect();
             if (_hybridSync != null) {
               _hybridSync!.start();
               _hybridSync!.syncNow();
@@ -406,7 +391,6 @@ class IMClient {
 
       print('✅[IMClient] 手动重连成功');
       if (currentUserId != null) {
-        _userStatusManager?.resumeAfterReconnect();
         if (_hybridSync != null) {
           _hybridSync!.start();
           _hybridSync!.syncNow();
@@ -684,10 +668,6 @@ class IMClient {
     } else if (type == 'recall_message') {
       _handleRecalledMessage(data);
     } else if (type == 'pong') {
-    } else if (type == 'presence_update') {
-      final userData = data['data'] as Map<String, dynamic>? ?? data;
-      final user = User.fromJson(userData);
-      _eventBus.fire(UserPresenceEvent(user: user));
     } else if (type == 'friend_request') {
       _handleFriendRequest(data);
     } else if (type == 'friend_accepted') {
@@ -893,8 +873,6 @@ class IMClient {
 
     _messageService.dispose();
     _groupService.dispose();
-    _userStatusManager?.dispose();
-    _userStatusManager = null;
     _hybridSync?.dispose();
     _hybridSync = null;
 

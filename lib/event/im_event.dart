@@ -64,18 +64,6 @@ class UserEvent extends IMEvent {
   UserEvent({required this.user, super.timestamp});
 }
 
-class UserOnlineEvent extends UserEvent {
-  UserOnlineEvent({required super.user});
-}
-
-class UserOfflineEvent extends UserEvent {
-  UserOfflineEvent({required super.user});
-}
-
-class UserPresenceEvent extends UserEvent {
-  UserPresenceEvent({required super.user});
-}
-
 class GroupEvent extends IMEvent {
   final Group group;
 
