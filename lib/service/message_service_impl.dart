@@ -9,6 +9,7 @@ import '../model/conversation.dart';
 import '../storage/storage_interface.dart';
 import '../utils/logger.dart';
 import '../client/im_client.dart';
+import '../core/read_receipt_manager.dart';
 import 'message_service.dart';
 
 class MessageServiceImpl implements MessageService {
@@ -608,95 +609,3 @@ class _PendingMessage {
   });
 }
 
-class ReadReceiptManager {
-  final ConnectionManager _connectionManager;
-  final Duration _batchDelay;
-
-  final Set<int> _pendingReceipts = {};
-  Timer? _batchTimer;
-  bool _isDisposed = false;
-
-  static const int _maxBatchSize = 50;
-
-  final Logger _log = AppLogger.instance;
-
-  ReadReceiptManager({
-    required ConnectionManager connectionManager,
-    required Duration batchDelay,
-  }) : _connectionManager = connectionManager,
-       _batchDelay = batchDelay;
-
-  Future<void> enqueueReceipt(int messageId, {int? groupId}) async {
-    if (_isDisposed) {
-      return;
-    }
-
-    if (_pendingReceipts.contains(messageId)) {
-      return;
-    }
-
-    if (_pendingReceipts.length >= _maxBatchSize) {
-      await _sendBatchImmediately();
-    }
-
-    _pendingReceipts.add(messageId);
-    _scheduleBatchSend();
-  }
-
-  void _scheduleBatchSend() {
-    if (_isDisposed) return;
-
-    _batchTimer?.cancel();
-    _batchTimer = Timer(_batchDelay, () {
-      if (!_isDisposed && _pendingReceipts.isNotEmpty) {
-        _sendBatch();
-      }
-    });
-  }
-
-  Future<void> _sendBatch() async {
-    if (_pendingReceipts.isEmpty || _isDisposed) return;
-
-    final messageIds = _pendingReceipts.toList();
-    _pendingReceipts.clear();
-
-    try {
-      if (_connectionManager.isConnected) {
-        _connectionManager.sendMessage({
-          'type': 'read_receipt',
-          'messageIds': messageIds,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-        });
-        _log.i('已读回执批量发送成功, messageIds=$messageIds');
-      } else {
-        _log.w('网络未连接，已读回执缓存到本地');
-        for (final msgId in messageIds) {
-          _pendingReceipts.add(msgId);
-        }
-      }
-    } catch (e) {
-      _log.e('已读回执发送失败', error: e);
-      for (final msgId in messageIds) {
-        _pendingReceipts.add(msgId);
-      }
-    }
-  }
-
-  Future<void> _sendBatchImmediately() async {
-    _batchTimer?.cancel();
-    await _sendBatch();
-  }
-
-  void dispose() {
-    _isDisposed = true;
-    _batchTimer?.cancel();
-    _batchTimer = null;
-
-    if (_pendingReceipts.isNotEmpty) {
-      _log.w('ReadReceiptManager 销毁时仍有 ${_pendingReceipts.length} 条待发送回执');
-      _pendingReceipts.clear();
-    }
-
-    _log.i('ReadReceiptManager 已释放资源');
-  }
-}

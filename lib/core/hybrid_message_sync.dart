@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import '../client/im_client.dart';
 import '../model/message.dart';
 import '../storage/storage_interface.dart';
@@ -259,37 +260,64 @@ class HybridMessageSync {
     required int offset,
     required int limit,
   }) async {
-    if (_currentRequest != null && !_currentRequest!.isCompleted) {
-      throw StateError('已有进行中的请求');
-    }
-
-    _currentRequest = Completer<List<Map<String, dynamic>>>();
-
-    StreamSubscription? sub;
-    sub = _eventBus.on<OfflineMessagesEvent>().listen((event) {
-      if (_currentRequest != null && !_currentRequest!.isCompleted) {
-        _currentRequest!.complete(event.messages);
-      }
-      sub?.cancel();
-    });
-
     try {
-      _client.connectionManager?.sendMessage({
-        'type': 'get_offline_messages',
-        'since': sinceTimestamp,
-        'sinceMessageId': sinceMessageId,
-        'offset': offset,
-        'limit': limit,
-      });
+      final dio = Dio();
+      dio.options.connectTimeout = const Duration(seconds: _requestTimeoutSeconds);
+      dio.options.receiveTimeout = const Duration(seconds: _requestTimeoutSeconds);
 
-      final result = await _currentRequest!.future.timeout(
-        Duration(seconds: _requestTimeoutSeconds),
-        onTimeout: () => [],
+      // 将WebSocket URL转换为HTTP REST API URL
+      // 例如: ws://localhost:8080/ws → http://localhost:8080
+      final httpBaseUrl = _convertToHttpUrl(_client.serverUrl);
+
+      _log.i('🌐 HTTP请求地址: $httpBaseUrl/message/offline');
+
+      final response = await dio.get(
+        '$httpBaseUrl/message/offline',
+        queryParameters: {
+          // 注意：userId不再需要传！服务端从JWT Token中自动提取
+          'since': sinceTimestamp,
+          'sinceMessageId': sinceMessageId,
+          'offset': offset,
+          'limit': limit,
+        },
+        options: Options(
+          headers: {
+            // 必须携带有效的JWT Token，服务端会从中提取userId
+            'Authorization': 'Bearer ${_client.token}',
+            'Content-Type': 'application/json',
+          },
+        ),
       );
 
-      return result;
-    } finally {
-      sub?.cancel();
+      if (response.statusCode == 200) {
+        final data = response.data;
+
+        if (data['code'] == 200 && data['data'] != null) {
+          final responseData = data['data'] as Map<String, dynamic>;
+          final messages = responseData['messages'] as List? ?? [];
+
+          _log.i('📥 HTTP离线消息请求成功: 返回${messages.length}条');
+
+          return messages.cast<Map<String, dynamic>>();
+        } else {
+          _log.w('⚠️ HTTP返回异常: code=${data['code']}, message=${data['message']}');
+          return [];
+        }
+      } else {
+        _log.w('⚠️ HTTP请求失败: statusCode=${response.statusCode}');
+        return [];
+      }
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        _log.w('HTTP请求超时');
+      } else {
+        _log.e('HTTP请求异常', error: e);
+      }
+      return [];
+    } catch (e) {
+      _log.e('获取离线消息失败', error: e);
+      return [];
     }
   }
 
@@ -347,6 +375,53 @@ class HybridMessageSync {
       }
     }
     return maxId;
+  }
+
+  /// 将WebSocket URL转换为HTTP REST API基础URL
+  /// 例如:
+  ///   - ws://localhost:8080/ws → http://localhost:8080
+  ///   - wss://example.com/ws → https://example.com
+  ///   - localhost:8080 → http://localhost:8080
+  String _convertToHttpUrl(String wsUrl) {
+    try {
+      final uri = Uri.parse(wsUrl);
+
+      // 提取协议、主机、端口
+      String scheme = uri.scheme;
+      String host = uri.host;
+      int? port = uri.port;
+
+      // 处理协议转换
+      if (scheme == 'ws') {
+        scheme = 'http';
+      } else if (scheme == 'wss') {
+        scheme = 'https';
+      } else if (scheme.isEmpty || scheme == 'http' || scheme == 'https') {
+        // 已经是HTTP协议或没有协议，保持不变
+        if (scheme.isEmpty) {
+          scheme = 'http';
+        }
+      }
+
+      // 构建基础URL（不包含路径部分）
+      String baseUrl;
+      if (port != null && port > 0 && port != 80 && port != 443) {
+        baseUrl = '$scheme://$host:$port';
+      } else {
+        baseUrl = '$scheme://$host';
+      }
+
+      _log.d('🔀 URL转换: $wsUrl → $baseUrl');
+      return baseUrl;
+    } catch (e) {
+      _log.w('⚠️ URL转换失败: $wsUrl, 错误: $e');
+      // 如果转换失败，尝试简单的字符串替换作为fallback
+      return wsUrl
+          .replaceAll('ws://', 'http://')
+          .replaceAll('wss://', 'https://')
+          .replaceAll(RegExp(r'/ws$'), '')
+          .replaceAll(RegExp(r'/ws/$'), '');
+    }
   }
 
   Future<void> _updateConversationFromMessage(Message message) async {

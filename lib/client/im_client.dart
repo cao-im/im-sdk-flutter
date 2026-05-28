@@ -18,6 +18,7 @@ import '../utils/logger.dart';
 import '../service/message_service_impl.dart';
 import '../service/conversation_service_impl.dart';
 import '../service/group_service_impl.dart';
+import '../core/read_receipt_manager.dart';
 
 class IMConfig {
   final int heartbeatInterval;
@@ -105,6 +106,9 @@ class IMClient {
   late GroupServiceImpl _groupService;
   UserStatusManager? _userStatusManager;
   HybridMessageSync? _hybridSync;
+
+  /// 已读回执管理器（支持断网缓存+重连补发）
+  ReadReceiptManager? _readReceiptManager;
 
   final List<MessageListener> _messageListeners = [];
   final List<ConnectionListener> _connectionListeners = [];
@@ -272,6 +276,9 @@ class IMClient {
     }
     print('📍[IMClient] token已设置, serverUrl: $serverUrl, currentUserId: $currentUserId');
 
+    // 📝 初始化已读回执管理器（支持断网缓存+重连补发）
+    _initReadReceiptManager();
+
     try {
       print('📍[IMClient] 调用 ConnectionManager.connect(serverUrl, token)...');
       await _connectionManager.connect(serverUrl, token);
@@ -311,6 +318,8 @@ class IMClient {
               _hybridSync!.start();
               _hybridSync!.syncNow();
             }
+            // 🔄 重连成功后自动补发缓存的已读回执
+            _readReceiptManager?.flushPendingReceipts();
           },
           onReconnectFailed: () {
             print('❌[IMClient] ReconnectManager 重连失败回调 (已达最大次数)');
@@ -354,6 +363,11 @@ class IMClient {
     _stopHybridSync();
     _reconnectManager?.cancel();
     _connectionManager.disconnect();
+
+    // 🗑️ 清理回执管理器
+    _readReceiptManager?.dispose();
+    _readReceiptManager = null;
+
     token = '';
     currentUserId = null;
   }
@@ -680,6 +694,30 @@ class IMClient {
       _handleFriendAccepted(data);
     } else if (type == 'friend_rejected') {
       _handleFriendRejected(data);
+    } else if (type == 'offline_messages') {
+      _handleOfflineMessages(data);
+    }
+  }
+
+  void _handleOfflineMessages(Map<String, dynamic> data) {
+    try {
+      final messages = data['messages'];
+
+      if (messages is List) {
+        final messagesList = messages
+            .map((e) => e is Map<String, dynamic> ? e : <String, dynamic>{})
+            .toList();
+
+        _log.i('📥 收到离线消息响应: 共 ${messagesList.length} 条消息');
+
+        _eventBus.fire(OfflineMessagesEvent(messages: messagesList));
+      } else {
+        _log.w('⚠️ 离线消息格式错误: messages字段不是数组');
+        _eventBus.fire(OfflineMessagesEvent(messages: []));
+      }
+    } catch (e) {
+      _log.e('❌ 处理离线消息响应失败', error: e);
+      _eventBus.fire(OfflineMessagesEvent(messages: []));
     }
   }
 
@@ -860,6 +898,10 @@ class IMClient {
     _hybridSync?.dispose();
     _hybridSync = null;
 
+    // 🗑️ 清理回执管理器
+    _readReceiptManager?.dispose();
+    _readReceiptManager = null;
+
     _reconnectManager = null;
     await disconnect();
     _connectionManager.dispose();
@@ -881,9 +923,44 @@ class IMClient {
         eventBus: _eventBus,
       );
       _hybridSync!.start();
-      _log.i('🚀 混合消息同步已初始化 (微信模式)，开始首次离线补拉');
+      _log.i('🚀 混合消息同步已初始化（微信模式），开始首次离线补拉');
       _hybridSync!.syncNow();
     }
+  }
+
+  /// 📝 初始化已读回执管理器（支持断网缓存+重连补发）
+  void _initReadReceiptManager() {
+    _readReceiptManager?.dispose(); // 先清理旧的
+
+    _readReceiptManager = ReadReceiptManager(
+      connectionManager: _connectionManager,
+      batchDelay: const Duration(milliseconds: 500), // 默认500ms防抖
+      onReconnected: () {
+        _log.i('📝 已读回执补发完成，通知外部');
+      },
+    );
+
+    _log.i('✅ ReadReceiptManager 已初始化（支持断网缓存+重连补发）');
+  }
+
+  // ==================== 公开API ====================
+
+  /// 📝 发送已读回执（通过ReadReceiptManager，支持断网缓存）
+  Future<void> sendReadReceipt(int messageId, {int? groupId}) async {
+    await _readReceiptManager?.enqueueReceipt(messageId, groupId: groupId);
+  }
+
+  /// 📝 批量发送已读回执
+  Future<void> sendReadReceiptBatch(List<int> messageIds) async {
+    await _readReceiptManager?.enqueueBatch(messageIds);
+  }
+
+  /// 📝 获取当前缓存的待发送回执数量
+  int get pendingReceiptCount => _readReceiptManager?.pendingCount ?? 0;
+
+  /// 📊 获取回执管理器调试信息
+  Map<String, dynamic> getReceiptDebugInfo() {
+    return _readReceiptManager?.getDebugInfo() ?? {'status': '未初始化'};
   }
 
   void _stopHybridSync() {
