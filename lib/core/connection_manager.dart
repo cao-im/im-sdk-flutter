@@ -173,20 +173,25 @@ class ConnectionManager {
       print('✅[ConnMgr] [步骤3/4] WebSocket ready 成功! 耗时: ${elapsed}ms');
 
       print('📍[ConnMgr] [步骤4/4] 设置连接状态为 connected...');
-      _updateStatus(ConnectionStatus.connected);
-      _log.i('WebSocket 连接成功');
-      print('✅[ConnMgr] ====== connect() 完全成功 ======');
 
+      final connectedTime = DateTime.now();
+      _log.i('📊 连接建立时间: ${connectedTime.millisecondsSinceEpoch}');
+
+      _listenMessages();
       _heartbeatManager = HeartbeatManager(
         intervalSeconds: _heartbeatInterval,
         onPing: _sendPing,
         onTimeout: () {
-          _log.w('心跳超时，连接可能已断开');
+          final duration = DateTime.now().difference(connectedTime).inMilliseconds;
+          _log.w('心跳超时，连接可能已断开 (连接持续: ${duration}ms)');
           _handleDisconnection();
         },
       );
       _heartbeatManager.start();
-      _listenMessages();
+
+      _updateStatus(ConnectionStatus.connected);
+      _log.i('WebSocket 连接成功');
+      print('✅[ConnMgr] ====== connect() 完全成功 ======');
     } on TimeoutException catch (e) {
       print('❌[ConnMgr] 捕获到 TimeoutException: $e');
       _log.e('连接超时: $e');
@@ -225,7 +230,10 @@ class ConnectionManager {
     _channel!.sink.add(jsonEncode(data));
   }
 
+  DateTime? _connectedTime;
+
   void _listenMessages() {
+    _connectedTime = DateTime.now();
     _channel?.stream.listen(
       (message) {
         if (message is String) {
@@ -249,9 +257,27 @@ class ConnectionManager {
         }
       },
       onDone: () {
+        final duration = _connectedTime != null
+            ? DateTime.now().difference(_connectedTime!).inMilliseconds
+            : 0;
+        _log.w('🔌 WebSocket 连接已关闭 (onDone 触发)');
+        _log.w('⏱️ 连接持续时间: ${duration}ms');
+        _log.w('🔍 可能原因:');
+        _log.w('   1. 服务端主动关闭连接');
+        _log.w('   2. Token 认证失败或过期');
+        _log.w('   3. 服务端配置问题（最大连接数、IP白名单等）');
+        _log.w('   4. 网络中断');
+        _log.w('📎 建议: 检查服务端日志获取详细关闭原因');
         _handleDisconnection();
       },
       onError: (error) {
+        final duration = _connectedTime != null
+            ? DateTime.now().difference(_connectedTime!).inMilliseconds
+            : 0;
+        _log.e('❌ WebSocket 连接错误 (onError 触发)', error: error);
+        _log.e('⏱️ 连接持续时间: ${duration}ms');
+        _log.e('❌ 错误详情: ${error.toString()}');
+        _log.e('🔍 错误类型: ${error.runtimeType}');
         _handleDisconnection();
       },
     );

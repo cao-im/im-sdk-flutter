@@ -21,30 +21,48 @@ import '../service/group_service_impl.dart';
 
 class IMConfig {
   final int heartbeatInterval;
+  final int maxRetries;
   final int reconnectMaxRetries;
+  final bool enableInfiniteReconnect;
   final int reconnectBaseDelayMs;
+  final int reconnectMaxDelayMs;
+  final DelayCalculator? customReconnectDelayCalculator;
   final int connectTimeoutSeconds;
   final bool enableOfflineSync;
 
   const IMConfig({
     this.heartbeatInterval = 30,
+    this.maxRetries = 5,
     this.reconnectMaxRetries = 5,
+    this.enableInfiniteReconnect = false,
     this.reconnectBaseDelayMs = 1000,
+    this.reconnectMaxDelayMs = 30000,
+    this.customReconnectDelayCalculator,
     this.connectTimeoutSeconds = 10,
     this.enableOfflineSync = true,
   });
 
   IMConfig copyWith({
     int? heartbeatInterval,
+    int? maxRetries,
     int? reconnectMaxRetries,
+    bool? enableInfiniteReconnect,
     int? reconnectBaseDelayMs,
+    int? reconnectMaxDelayMs,
+    DelayCalculator? customReconnectDelayCalculator,
     int? connectTimeoutSeconds,
     bool? enableOfflineSync,
   }) {
     return IMConfig(
       heartbeatInterval: heartbeatInterval ?? this.heartbeatInterval,
+      maxRetries: maxRetries ?? this.maxRetries,
       reconnectMaxRetries: reconnectMaxRetries ?? this.reconnectMaxRetries,
+      enableInfiniteReconnect:
+          enableInfiniteReconnect ?? this.enableInfiniteReconnect,
       reconnectBaseDelayMs: reconnectBaseDelayMs ?? this.reconnectBaseDelayMs,
+      reconnectMaxDelayMs: reconnectMaxDelayMs ?? this.reconnectMaxDelayMs,
+      customReconnectDelayCalculator:
+          customReconnectDelayCalculator ?? this.customReconnectDelayCalculator,
       connectTimeoutSeconds:
           connectTimeoutSeconds ?? this.connectTimeoutSeconds,
       enableOfflineSync: enableOfflineSync ?? this.enableOfflineSync,
@@ -269,16 +287,25 @@ class IMClient {
       }
 
       if (_reconnectManager == null) {
+        print('📍[IMClient] 初始化 ReconnectManager...');
         _reconnectManager = ReconnectManager(
+          maxRetries: _config.maxRetries,
+          infiniteRetry: _config.enableInfiniteReconnect,
+          baseDelayMs: _config.reconnectBaseDelayMs,
+          maxDelayMs: _config.reconnectMaxDelayMs,
+          delayCalculator: _config.customReconnectDelayCalculator,
           onReconnect: () async {
             try {
+              print('🔄[IMClient] ReconnectManager 执行重连回调...');
               await _connectionManager.connect(serverUrl, token);
               return true;
             } catch (e) {
+              print('❌[IMClient] ReconnectManager 重连异常: $e');
               return false;
             }
           },
           onReconnectSuccess: () {
+            print('✅[IMClient] ReconnectManager 重连成功回调');
             _userStatusManager?.resumeAfterReconnect();
             if (_hybridSync != null) {
               _hybridSync!.start();
@@ -286,19 +313,37 @@ class IMClient {
             }
           },
           onReconnectFailed: () {
+            print('❌[IMClient] ReconnectManager 重连失败回调 (已达最大次数)');
             for (var listener in _connectionListeners) {
               listener.onReconnectFailed();
             }
           },
-          onStatusChange: (_) {},
+          onStatusChange: (isReconnecting) {
+            for (var listener in _connectionListeners) {
+              listener.onReconnectingStateChanged(isReconnecting);
+            }
+          },
+          onReconnectAttempt: (info) {
+            print('🔄[IMClient] 重连尝试: $info');
+          },
         );
+        print('✅[IMClient] ReconnectManager 初始化完成');
+        print('   最大重试: ${_config.maxRetries}次');
+        print('   无限重试: ${_config.enableInfiniteReconnect}');
+        print('   基础延迟: ${_config.reconnectBaseDelayMs}ms');
+        print('   最大延迟: ${_config.reconnectMaxDelayMs}ms');
 
         _reconnectSub = _connectionManager.onStatusChanged.listen((status) {
-          if (status == ConnectionStatus.disconnected &&
-              currentUserId != null) {
-            _reconnectManager?.scheduleReconnect();
+          print('🔗[IMClient] 连接状态变更: $status');
+          
+          if (status == ConnectionStatus.disconnected && currentUserId != null) {
+            final reason = '连接状态变为 disconnected';
+            print('📢[IMClient] 触发自动重连, 原因: $reason');
+            _reconnectManager?.scheduleReconnect(reason: reason);
           }
         });
+      } else {
+        print('ℹ️[IMClient] ReconnectManager 已存在，跳过初始化');
       }
     } catch (e) {
       throw Exception('连接失败: $e');
@@ -307,6 +352,7 @@ class IMClient {
 
   Future<void> disconnect() async {
     _stopHybridSync();
+    _reconnectManager?.cancel();
     _connectionManager.disconnect();
     token = '';
     currentUserId = null;
@@ -315,6 +361,69 @@ class IMClient {
   ConnectionStatus get connectionStatus => _connectionManager.status;
 
   bool get isConnected => _connectionManager.isConnected;
+
+  bool get isReconnecting => _reconnectManager?.isReconnecting ?? false;
+
+  int get reconnectRetryCount => _reconnectManager?.retryCount ?? 0;
+
+  String get reconnectStatusDescription =>
+      _reconnectManager?.statusDescription ?? '未初始化';
+
+  Future<bool> manualReconnect({String? reason}) async {
+    if (!_isInitialized) {
+      throw StateError('IMClient 未初始化，请先调用 init()');
+    }
+
+    if (token.isEmpty) {
+      throw StateError('Token 为空，请先调用 connect()');
+    }
+
+    print('🔄[IMClient] 手动触发重连...');
+    if (reason != null) {
+      print('🔄[IMClient] 原因: $reason');
+    }
+
+    try {
+      _reconnectManager?.cancel();
+      _reconnectManager?.reset(logReset: false);
+
+      print('🔄[IMClient] 执行连接...');
+      await _connectionManager.connect(serverUrl, token);
+
+      print('✅[IMClient] 手动重连成功');
+      if (currentUserId != null) {
+        _userStatusManager?.resumeAfterReconnect();
+        if (_hybridSync != null) {
+          _hybridSync!.start();
+          _hybridSync!.syncNow();
+        }
+      }
+      return true;
+    } catch (e) {
+      print('❌[IMClient] 手动重连失败: $e');
+
+      if (_reconnectManager != null && currentUserId != null) {
+        _reconnectManager!.scheduleReconnect(reason: reason ?? '手动重连失败');
+      }
+      return false;
+    }
+  }
+
+  void cancelReconnect() {
+    _reconnectManager?.cancel();
+    print('🛑[IMClient] 已取消自动重连');
+  }
+
+  Map<String, dynamic> getReconnectDebugInfo() {
+    final managerInfo = _reconnectManager?.getDebugInfo() ?? {};
+    return {
+      ...managerInfo,
+      'hasReconnectManager': _reconnectManager != null,
+      'isInitialized': _isInitialized,
+      'hasToken': token.isNotEmpty,
+      'currentUserId': currentUserId,
+    };
+  }
 
   Future<Message> sendMessage({
     required int toId,

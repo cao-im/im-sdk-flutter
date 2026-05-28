@@ -71,8 +71,15 @@ class HybridMessageSync {
   void _handleConnectionStatusChange(ConnectionStatus status) {
     switch (status) {
       case ConnectionStatus.connected:
-        _log.i('✅ 连接已建立，触发离线消息补拉');
-        _syncOfflineMessages();
+        _log.i('✅ 连接已建立，等待连接稳定后触发离线消息补拉');
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (!_isDisposed && _client.isConnected) {
+            _log.i('✅ 连接已稳定，开始离线消息补拉');
+            _syncOfflineMessages();
+          } else {
+            _log.w('⚠️ 连接不稳定，取消离线消息补拉');
+          }
+        });
         break;
       case ConnectionStatus.disconnected:
         _log.w('⚠️ 连接断开，准备切换到降级模式');

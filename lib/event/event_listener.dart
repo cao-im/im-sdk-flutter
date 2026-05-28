@@ -16,6 +16,8 @@ abstract class ConnectionListener {
   void onConnecting();
   void onReconnecting();
   void onReconnectFailed();
+  
+  void onReconnectingStateChanged(bool isReconnecting) {}
 }
 
 abstract class ConversationListener {
