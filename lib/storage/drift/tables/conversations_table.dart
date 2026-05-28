@@ -12,4 +12,25 @@ class Conversations extends Table {
   IntColumn get unreadCount => integer().withDefault(const Constant(0))();
 
   IntColumn get updateTime => integer()();
+
+  TextColumn get lastMessageContent => text().nullable()();
+
+  IntColumn get lastMessageType => integer().nullable()();
+
+  IntColumn get lastMessageStatus => integer().nullable()();
+
+  IntColumn get lastMessageTimestamp => integer().nullable()();
+
+  IntColumn get lastMessageFromId => integer().nullable()();
+
+  IntColumn get lastMessageToId => integer().nullable()();
+
+  IntColumn get lastMessageGroupId => integer().nullable()();
+
+  TextColumn get lastMessageLocalPath => text().nullable()();
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {userId, targetType, targetId},
+  ];
 }

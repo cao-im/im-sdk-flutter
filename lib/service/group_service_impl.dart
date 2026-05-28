@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:sqflite/sqflite.dart';
-
 import '../core/connection_manager.dart';
 import '../core/exceptions.dart';
 import '../event/event_bus.dart';

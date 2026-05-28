@@ -918,7 +918,7 @@ class _FallbackStorage implements StorageInterface {
   Future<int> getUnreadCount(int userId) async => 0;
 
   @override
-  Future<void> markAsRead(int userId, {int? groupId}) async {}
+  Future<void> markAsRead(int userId, {int? targetId, int? groupId}) async {}
 
   @override
   Future<int> insertConversation(Conversation conversation) async => 0;

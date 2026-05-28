@@ -621,6 +621,92 @@ class $ConversationsTable extends Conversations
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _lastMessageContentMeta =
+      const VerificationMeta('lastMessageContent');
+  @override
+  late final GeneratedColumn<String> lastMessageContent =
+      GeneratedColumn<String>(
+        'last_message_content',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastMessageTypeMeta = const VerificationMeta(
+    'lastMessageType',
+  );
+  @override
+  late final GeneratedColumn<int> lastMessageType = GeneratedColumn<int>(
+    'last_message_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastMessageStatusMeta = const VerificationMeta(
+    'lastMessageStatus',
+  );
+  @override
+  late final GeneratedColumn<int> lastMessageStatus = GeneratedColumn<int>(
+    'last_message_status',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastMessageTimestampMeta =
+      const VerificationMeta('lastMessageTimestamp');
+  @override
+  late final GeneratedColumn<int> lastMessageTimestamp = GeneratedColumn<int>(
+    'last_message_timestamp',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastMessageFromIdMeta = const VerificationMeta(
+    'lastMessageFromId',
+  );
+  @override
+  late final GeneratedColumn<int> lastMessageFromId = GeneratedColumn<int>(
+    'last_message_from_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastMessageToIdMeta = const VerificationMeta(
+    'lastMessageToId',
+  );
+  @override
+  late final GeneratedColumn<int> lastMessageToId = GeneratedColumn<int>(
+    'last_message_to_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastMessageGroupIdMeta =
+      const VerificationMeta('lastMessageGroupId');
+  @override
+  late final GeneratedColumn<int> lastMessageGroupId = GeneratedColumn<int>(
+    'last_message_group_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastMessageLocalPathMeta =
+      const VerificationMeta('lastMessageLocalPath');
+  @override
+  late final GeneratedColumn<String> lastMessageLocalPath =
+      GeneratedColumn<String>(
+        'last_message_local_path',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -629,6 +715,14 @@ class $ConversationsTable extends Conversations
     targetId,
     unreadCount,
     updateTime,
+    lastMessageContent,
+    lastMessageType,
+    lastMessageStatus,
+    lastMessageTimestamp,
+    lastMessageFromId,
+    lastMessageToId,
+    lastMessageGroupId,
+    lastMessageLocalPath,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -686,11 +780,87 @@ class $ConversationsTable extends Conversations
     } else if (isInserting) {
       context.missing(_updateTimeMeta);
     }
+    if (data.containsKey('last_message_content')) {
+      context.handle(
+        _lastMessageContentMeta,
+        lastMessageContent.isAcceptableOrUnknown(
+          data['last_message_content']!,
+          _lastMessageContentMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_message_type')) {
+      context.handle(
+        _lastMessageTypeMeta,
+        lastMessageType.isAcceptableOrUnknown(
+          data['last_message_type']!,
+          _lastMessageTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_message_status')) {
+      context.handle(
+        _lastMessageStatusMeta,
+        lastMessageStatus.isAcceptableOrUnknown(
+          data['last_message_status']!,
+          _lastMessageStatusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_message_timestamp')) {
+      context.handle(
+        _lastMessageTimestampMeta,
+        lastMessageTimestamp.isAcceptableOrUnknown(
+          data['last_message_timestamp']!,
+          _lastMessageTimestampMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_message_from_id')) {
+      context.handle(
+        _lastMessageFromIdMeta,
+        lastMessageFromId.isAcceptableOrUnknown(
+          data['last_message_from_id']!,
+          _lastMessageFromIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_message_to_id')) {
+      context.handle(
+        _lastMessageToIdMeta,
+        lastMessageToId.isAcceptableOrUnknown(
+          data['last_message_to_id']!,
+          _lastMessageToIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_message_group_id')) {
+      context.handle(
+        _lastMessageGroupIdMeta,
+        lastMessageGroupId.isAcceptableOrUnknown(
+          data['last_message_group_id']!,
+          _lastMessageGroupIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_message_local_path')) {
+      context.handle(
+        _lastMessageLocalPathMeta,
+        lastMessageLocalPath.isAcceptableOrUnknown(
+          data['last_message_local_path']!,
+          _lastMessageLocalPathMeta,
+        ),
+      );
+    }
     return context;
   }
 
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {userId, targetType, targetId},
+  ];
   @override
   Conversation map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -719,6 +889,38 @@ class $ConversationsTable extends Conversations
         DriftSqlType.int,
         data['${effectivePrefix}update_time'],
       )!,
+      lastMessageContent: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_message_content'],
+      ),
+      lastMessageType: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_message_type'],
+      ),
+      lastMessageStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_message_status'],
+      ),
+      lastMessageTimestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_message_timestamp'],
+      ),
+      lastMessageFromId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_message_from_id'],
+      ),
+      lastMessageToId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_message_to_id'],
+      ),
+      lastMessageGroupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_message_group_id'],
+      ),
+      lastMessageLocalPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_message_local_path'],
+      ),
     );
   }
 
@@ -735,6 +937,14 @@ class Conversation extends DataClass implements Insertable<Conversation> {
   final int targetId;
   final int unreadCount;
   final int updateTime;
+  final String? lastMessageContent;
+  final int? lastMessageType;
+  final int? lastMessageStatus;
+  final int? lastMessageTimestamp;
+  final int? lastMessageFromId;
+  final int? lastMessageToId;
+  final int? lastMessageGroupId;
+  final String? lastMessageLocalPath;
   const Conversation({
     required this.id,
     required this.userId,
@@ -742,6 +952,14 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     required this.targetId,
     required this.unreadCount,
     required this.updateTime,
+    this.lastMessageContent,
+    this.lastMessageType,
+    this.lastMessageStatus,
+    this.lastMessageTimestamp,
+    this.lastMessageFromId,
+    this.lastMessageToId,
+    this.lastMessageGroupId,
+    this.lastMessageLocalPath,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -752,6 +970,30 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     map['target_id'] = Variable<int>(targetId);
     map['unread_count'] = Variable<int>(unreadCount);
     map['update_time'] = Variable<int>(updateTime);
+    if (!nullToAbsent || lastMessageContent != null) {
+      map['last_message_content'] = Variable<String>(lastMessageContent);
+    }
+    if (!nullToAbsent || lastMessageType != null) {
+      map['last_message_type'] = Variable<int>(lastMessageType);
+    }
+    if (!nullToAbsent || lastMessageStatus != null) {
+      map['last_message_status'] = Variable<int>(lastMessageStatus);
+    }
+    if (!nullToAbsent || lastMessageTimestamp != null) {
+      map['last_message_timestamp'] = Variable<int>(lastMessageTimestamp);
+    }
+    if (!nullToAbsent || lastMessageFromId != null) {
+      map['last_message_from_id'] = Variable<int>(lastMessageFromId);
+    }
+    if (!nullToAbsent || lastMessageToId != null) {
+      map['last_message_to_id'] = Variable<int>(lastMessageToId);
+    }
+    if (!nullToAbsent || lastMessageGroupId != null) {
+      map['last_message_group_id'] = Variable<int>(lastMessageGroupId);
+    }
+    if (!nullToAbsent || lastMessageLocalPath != null) {
+      map['last_message_local_path'] = Variable<String>(lastMessageLocalPath);
+    }
     return map;
   }
 
@@ -763,6 +1005,30 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       targetId: Value(targetId),
       unreadCount: Value(unreadCount),
       updateTime: Value(updateTime),
+      lastMessageContent: lastMessageContent == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastMessageContent),
+      lastMessageType: lastMessageType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastMessageType),
+      lastMessageStatus: lastMessageStatus == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastMessageStatus),
+      lastMessageTimestamp: lastMessageTimestamp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastMessageTimestamp),
+      lastMessageFromId: lastMessageFromId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastMessageFromId),
+      lastMessageToId: lastMessageToId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastMessageToId),
+      lastMessageGroupId: lastMessageGroupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastMessageGroupId),
+      lastMessageLocalPath: lastMessageLocalPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastMessageLocalPath),
     );
   }
 
@@ -778,6 +1044,20 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       targetId: serializer.fromJson<int>(json['targetId']),
       unreadCount: serializer.fromJson<int>(json['unreadCount']),
       updateTime: serializer.fromJson<int>(json['updateTime']),
+      lastMessageContent: serializer.fromJson<String?>(
+        json['lastMessageContent'],
+      ),
+      lastMessageType: serializer.fromJson<int?>(json['lastMessageType']),
+      lastMessageStatus: serializer.fromJson<int?>(json['lastMessageStatus']),
+      lastMessageTimestamp: serializer.fromJson<int?>(
+        json['lastMessageTimestamp'],
+      ),
+      lastMessageFromId: serializer.fromJson<int?>(json['lastMessageFromId']),
+      lastMessageToId: serializer.fromJson<int?>(json['lastMessageToId']),
+      lastMessageGroupId: serializer.fromJson<int?>(json['lastMessageGroupId']),
+      lastMessageLocalPath: serializer.fromJson<String?>(
+        json['lastMessageLocalPath'],
+      ),
     );
   }
   @override
@@ -790,6 +1070,14 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       'targetId': serializer.toJson<int>(targetId),
       'unreadCount': serializer.toJson<int>(unreadCount),
       'updateTime': serializer.toJson<int>(updateTime),
+      'lastMessageContent': serializer.toJson<String?>(lastMessageContent),
+      'lastMessageType': serializer.toJson<int?>(lastMessageType),
+      'lastMessageStatus': serializer.toJson<int?>(lastMessageStatus),
+      'lastMessageTimestamp': serializer.toJson<int?>(lastMessageTimestamp),
+      'lastMessageFromId': serializer.toJson<int?>(lastMessageFromId),
+      'lastMessageToId': serializer.toJson<int?>(lastMessageToId),
+      'lastMessageGroupId': serializer.toJson<int?>(lastMessageGroupId),
+      'lastMessageLocalPath': serializer.toJson<String?>(lastMessageLocalPath),
     };
   }
 
@@ -800,6 +1088,14 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     int? targetId,
     int? unreadCount,
     int? updateTime,
+    Value<String?> lastMessageContent = const Value.absent(),
+    Value<int?> lastMessageType = const Value.absent(),
+    Value<int?> lastMessageStatus = const Value.absent(),
+    Value<int?> lastMessageTimestamp = const Value.absent(),
+    Value<int?> lastMessageFromId = const Value.absent(),
+    Value<int?> lastMessageToId = const Value.absent(),
+    Value<int?> lastMessageGroupId = const Value.absent(),
+    Value<String?> lastMessageLocalPath = const Value.absent(),
   }) => Conversation(
     id: id ?? this.id,
     userId: userId ?? this.userId,
@@ -807,6 +1103,30 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     targetId: targetId ?? this.targetId,
     unreadCount: unreadCount ?? this.unreadCount,
     updateTime: updateTime ?? this.updateTime,
+    lastMessageContent: lastMessageContent.present
+        ? lastMessageContent.value
+        : this.lastMessageContent,
+    lastMessageType: lastMessageType.present
+        ? lastMessageType.value
+        : this.lastMessageType,
+    lastMessageStatus: lastMessageStatus.present
+        ? lastMessageStatus.value
+        : this.lastMessageStatus,
+    lastMessageTimestamp: lastMessageTimestamp.present
+        ? lastMessageTimestamp.value
+        : this.lastMessageTimestamp,
+    lastMessageFromId: lastMessageFromId.present
+        ? lastMessageFromId.value
+        : this.lastMessageFromId,
+    lastMessageToId: lastMessageToId.present
+        ? lastMessageToId.value
+        : this.lastMessageToId,
+    lastMessageGroupId: lastMessageGroupId.present
+        ? lastMessageGroupId.value
+        : this.lastMessageGroupId,
+    lastMessageLocalPath: lastMessageLocalPath.present
+        ? lastMessageLocalPath.value
+        : this.lastMessageLocalPath,
   );
   Conversation copyWithCompanion(ConversationsCompanion data) {
     return Conversation(
@@ -822,6 +1142,30 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       updateTime: data.updateTime.present
           ? data.updateTime.value
           : this.updateTime,
+      lastMessageContent: data.lastMessageContent.present
+          ? data.lastMessageContent.value
+          : this.lastMessageContent,
+      lastMessageType: data.lastMessageType.present
+          ? data.lastMessageType.value
+          : this.lastMessageType,
+      lastMessageStatus: data.lastMessageStatus.present
+          ? data.lastMessageStatus.value
+          : this.lastMessageStatus,
+      lastMessageTimestamp: data.lastMessageTimestamp.present
+          ? data.lastMessageTimestamp.value
+          : this.lastMessageTimestamp,
+      lastMessageFromId: data.lastMessageFromId.present
+          ? data.lastMessageFromId.value
+          : this.lastMessageFromId,
+      lastMessageToId: data.lastMessageToId.present
+          ? data.lastMessageToId.value
+          : this.lastMessageToId,
+      lastMessageGroupId: data.lastMessageGroupId.present
+          ? data.lastMessageGroupId.value
+          : this.lastMessageGroupId,
+      lastMessageLocalPath: data.lastMessageLocalPath.present
+          ? data.lastMessageLocalPath.value
+          : this.lastMessageLocalPath,
     );
   }
 
@@ -833,14 +1177,36 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           ..write('targetType: $targetType, ')
           ..write('targetId: $targetId, ')
           ..write('unreadCount: $unreadCount, ')
-          ..write('updateTime: $updateTime')
+          ..write('updateTime: $updateTime, ')
+          ..write('lastMessageContent: $lastMessageContent, ')
+          ..write('lastMessageType: $lastMessageType, ')
+          ..write('lastMessageStatus: $lastMessageStatus, ')
+          ..write('lastMessageTimestamp: $lastMessageTimestamp, ')
+          ..write('lastMessageFromId: $lastMessageFromId, ')
+          ..write('lastMessageToId: $lastMessageToId, ')
+          ..write('lastMessageGroupId: $lastMessageGroupId, ')
+          ..write('lastMessageLocalPath: $lastMessageLocalPath')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, userId, targetType, targetId, unreadCount, updateTime);
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    targetType,
+    targetId,
+    unreadCount,
+    updateTime,
+    lastMessageContent,
+    lastMessageType,
+    lastMessageStatus,
+    lastMessageTimestamp,
+    lastMessageFromId,
+    lastMessageToId,
+    lastMessageGroupId,
+    lastMessageLocalPath,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -850,7 +1216,15 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           other.targetType == this.targetType &&
           other.targetId == this.targetId &&
           other.unreadCount == this.unreadCount &&
-          other.updateTime == this.updateTime);
+          other.updateTime == this.updateTime &&
+          other.lastMessageContent == this.lastMessageContent &&
+          other.lastMessageType == this.lastMessageType &&
+          other.lastMessageStatus == this.lastMessageStatus &&
+          other.lastMessageTimestamp == this.lastMessageTimestamp &&
+          other.lastMessageFromId == this.lastMessageFromId &&
+          other.lastMessageToId == this.lastMessageToId &&
+          other.lastMessageGroupId == this.lastMessageGroupId &&
+          other.lastMessageLocalPath == this.lastMessageLocalPath);
 }
 
 class ConversationsCompanion extends UpdateCompanion<Conversation> {
@@ -860,6 +1234,14 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
   final Value<int> targetId;
   final Value<int> unreadCount;
   final Value<int> updateTime;
+  final Value<String?> lastMessageContent;
+  final Value<int?> lastMessageType;
+  final Value<int?> lastMessageStatus;
+  final Value<int?> lastMessageTimestamp;
+  final Value<int?> lastMessageFromId;
+  final Value<int?> lastMessageToId;
+  final Value<int?> lastMessageGroupId;
+  final Value<String?> lastMessageLocalPath;
   const ConversationsCompanion({
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
@@ -867,6 +1249,14 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     this.targetId = const Value.absent(),
     this.unreadCount = const Value.absent(),
     this.updateTime = const Value.absent(),
+    this.lastMessageContent = const Value.absent(),
+    this.lastMessageType = const Value.absent(),
+    this.lastMessageStatus = const Value.absent(),
+    this.lastMessageTimestamp = const Value.absent(),
+    this.lastMessageFromId = const Value.absent(),
+    this.lastMessageToId = const Value.absent(),
+    this.lastMessageGroupId = const Value.absent(),
+    this.lastMessageLocalPath = const Value.absent(),
   });
   ConversationsCompanion.insert({
     this.id = const Value.absent(),
@@ -875,6 +1265,14 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     required int targetId,
     this.unreadCount = const Value.absent(),
     required int updateTime,
+    this.lastMessageContent = const Value.absent(),
+    this.lastMessageType = const Value.absent(),
+    this.lastMessageStatus = const Value.absent(),
+    this.lastMessageTimestamp = const Value.absent(),
+    this.lastMessageFromId = const Value.absent(),
+    this.lastMessageToId = const Value.absent(),
+    this.lastMessageGroupId = const Value.absent(),
+    this.lastMessageLocalPath = const Value.absent(),
   }) : userId = Value(userId),
        targetType = Value(targetType),
        targetId = Value(targetId),
@@ -886,6 +1284,14 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Expression<int>? targetId,
     Expression<int>? unreadCount,
     Expression<int>? updateTime,
+    Expression<String>? lastMessageContent,
+    Expression<int>? lastMessageType,
+    Expression<int>? lastMessageStatus,
+    Expression<int>? lastMessageTimestamp,
+    Expression<int>? lastMessageFromId,
+    Expression<int>? lastMessageToId,
+    Expression<int>? lastMessageGroupId,
+    Expression<String>? lastMessageLocalPath,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -894,6 +1300,18 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       if (targetId != null) 'target_id': targetId,
       if (unreadCount != null) 'unread_count': unreadCount,
       if (updateTime != null) 'update_time': updateTime,
+      if (lastMessageContent != null)
+        'last_message_content': lastMessageContent,
+      if (lastMessageType != null) 'last_message_type': lastMessageType,
+      if (lastMessageStatus != null) 'last_message_status': lastMessageStatus,
+      if (lastMessageTimestamp != null)
+        'last_message_timestamp': lastMessageTimestamp,
+      if (lastMessageFromId != null) 'last_message_from_id': lastMessageFromId,
+      if (lastMessageToId != null) 'last_message_to_id': lastMessageToId,
+      if (lastMessageGroupId != null)
+        'last_message_group_id': lastMessageGroupId,
+      if (lastMessageLocalPath != null)
+        'last_message_local_path': lastMessageLocalPath,
     });
   }
 
@@ -904,6 +1322,14 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Value<int>? targetId,
     Value<int>? unreadCount,
     Value<int>? updateTime,
+    Value<String?>? lastMessageContent,
+    Value<int?>? lastMessageType,
+    Value<int?>? lastMessageStatus,
+    Value<int?>? lastMessageTimestamp,
+    Value<int?>? lastMessageFromId,
+    Value<int?>? lastMessageToId,
+    Value<int?>? lastMessageGroupId,
+    Value<String?>? lastMessageLocalPath,
   }) {
     return ConversationsCompanion(
       id: id ?? this.id,
@@ -912,6 +1338,14 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       targetId: targetId ?? this.targetId,
       unreadCount: unreadCount ?? this.unreadCount,
       updateTime: updateTime ?? this.updateTime,
+      lastMessageContent: lastMessageContent ?? this.lastMessageContent,
+      lastMessageType: lastMessageType ?? this.lastMessageType,
+      lastMessageStatus: lastMessageStatus ?? this.lastMessageStatus,
+      lastMessageTimestamp: lastMessageTimestamp ?? this.lastMessageTimestamp,
+      lastMessageFromId: lastMessageFromId ?? this.lastMessageFromId,
+      lastMessageToId: lastMessageToId ?? this.lastMessageToId,
+      lastMessageGroupId: lastMessageGroupId ?? this.lastMessageGroupId,
+      lastMessageLocalPath: lastMessageLocalPath ?? this.lastMessageLocalPath,
     );
   }
 
@@ -936,6 +1370,32 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     if (updateTime.present) {
       map['update_time'] = Variable<int>(updateTime.value);
     }
+    if (lastMessageContent.present) {
+      map['last_message_content'] = Variable<String>(lastMessageContent.value);
+    }
+    if (lastMessageType.present) {
+      map['last_message_type'] = Variable<int>(lastMessageType.value);
+    }
+    if (lastMessageStatus.present) {
+      map['last_message_status'] = Variable<int>(lastMessageStatus.value);
+    }
+    if (lastMessageTimestamp.present) {
+      map['last_message_timestamp'] = Variable<int>(lastMessageTimestamp.value);
+    }
+    if (lastMessageFromId.present) {
+      map['last_message_from_id'] = Variable<int>(lastMessageFromId.value);
+    }
+    if (lastMessageToId.present) {
+      map['last_message_to_id'] = Variable<int>(lastMessageToId.value);
+    }
+    if (lastMessageGroupId.present) {
+      map['last_message_group_id'] = Variable<int>(lastMessageGroupId.value);
+    }
+    if (lastMessageLocalPath.present) {
+      map['last_message_local_path'] = Variable<String>(
+        lastMessageLocalPath.value,
+      );
+    }
     return map;
   }
 
@@ -947,7 +1407,15 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
           ..write('targetType: $targetType, ')
           ..write('targetId: $targetId, ')
           ..write('unreadCount: $unreadCount, ')
-          ..write('updateTime: $updateTime')
+          ..write('updateTime: $updateTime, ')
+          ..write('lastMessageContent: $lastMessageContent, ')
+          ..write('lastMessageType: $lastMessageType, ')
+          ..write('lastMessageStatus: $lastMessageStatus, ')
+          ..write('lastMessageTimestamp: $lastMessageTimestamp, ')
+          ..write('lastMessageFromId: $lastMessageFromId, ')
+          ..write('lastMessageToId: $lastMessageToId, ')
+          ..write('lastMessageGroupId: $lastMessageGroupId, ')
+          ..write('lastMessageLocalPath: $lastMessageLocalPath')
           ..write(')'))
         .toString();
   }
@@ -1237,6 +1705,14 @@ typedef $$ConversationsTableCreateCompanionBuilder =
       required int targetId,
       Value<int> unreadCount,
       required int updateTime,
+      Value<String?> lastMessageContent,
+      Value<int?> lastMessageType,
+      Value<int?> lastMessageStatus,
+      Value<int?> lastMessageTimestamp,
+      Value<int?> lastMessageFromId,
+      Value<int?> lastMessageToId,
+      Value<int?> lastMessageGroupId,
+      Value<String?> lastMessageLocalPath,
     });
 typedef $$ConversationsTableUpdateCompanionBuilder =
     ConversationsCompanion Function({
@@ -1246,6 +1722,14 @@ typedef $$ConversationsTableUpdateCompanionBuilder =
       Value<int> targetId,
       Value<int> unreadCount,
       Value<int> updateTime,
+      Value<String?> lastMessageContent,
+      Value<int?> lastMessageType,
+      Value<int?> lastMessageStatus,
+      Value<int?> lastMessageTimestamp,
+      Value<int?> lastMessageFromId,
+      Value<int?> lastMessageToId,
+      Value<int?> lastMessageGroupId,
+      Value<String?> lastMessageLocalPath,
     });
 
 class $$ConversationsTableFilterComposer
@@ -1284,6 +1768,46 @@ class $$ConversationsTableFilterComposer
 
   ColumnFilters<int> get updateTime => $composableBuilder(
     column: $table.updateTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastMessageContent => $composableBuilder(
+    column: $table.lastMessageContent,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastMessageType => $composableBuilder(
+    column: $table.lastMessageType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastMessageStatus => $composableBuilder(
+    column: $table.lastMessageStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastMessageTimestamp => $composableBuilder(
+    column: $table.lastMessageTimestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastMessageFromId => $composableBuilder(
+    column: $table.lastMessageFromId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastMessageToId => $composableBuilder(
+    column: $table.lastMessageToId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastMessageGroupId => $composableBuilder(
+    column: $table.lastMessageGroupId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastMessageLocalPath => $composableBuilder(
+    column: $table.lastMessageLocalPath,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1326,6 +1850,46 @@ class $$ConversationsTableOrderingComposer
     column: $table.updateTime,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get lastMessageContent => $composableBuilder(
+    column: $table.lastMessageContent,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastMessageType => $composableBuilder(
+    column: $table.lastMessageType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastMessageStatus => $composableBuilder(
+    column: $table.lastMessageStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastMessageTimestamp => $composableBuilder(
+    column: $table.lastMessageTimestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastMessageFromId => $composableBuilder(
+    column: $table.lastMessageFromId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastMessageToId => $composableBuilder(
+    column: $table.lastMessageToId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastMessageGroupId => $composableBuilder(
+    column: $table.lastMessageGroupId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastMessageLocalPath => $composableBuilder(
+    column: $table.lastMessageLocalPath,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ConversationsTableAnnotationComposer
@@ -1358,6 +1922,46 @@ class $$ConversationsTableAnnotationComposer
 
   GeneratedColumn<int> get updateTime => $composableBuilder(
     column: $table.updateTime,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastMessageContent => $composableBuilder(
+    column: $table.lastMessageContent,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastMessageType => $composableBuilder(
+    column: $table.lastMessageType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastMessageStatus => $composableBuilder(
+    column: $table.lastMessageStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastMessageTimestamp => $composableBuilder(
+    column: $table.lastMessageTimestamp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastMessageFromId => $composableBuilder(
+    column: $table.lastMessageFromId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastMessageToId => $composableBuilder(
+    column: $table.lastMessageToId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastMessageGroupId => $composableBuilder(
+    column: $table.lastMessageGroupId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastMessageLocalPath => $composableBuilder(
+    column: $table.lastMessageLocalPath,
     builder: (column) => column,
   );
 }
@@ -1399,6 +2003,14 @@ class $$ConversationsTableTableManager
                 Value<int> targetId = const Value.absent(),
                 Value<int> unreadCount = const Value.absent(),
                 Value<int> updateTime = const Value.absent(),
+                Value<String?> lastMessageContent = const Value.absent(),
+                Value<int?> lastMessageType = const Value.absent(),
+                Value<int?> lastMessageStatus = const Value.absent(),
+                Value<int?> lastMessageTimestamp = const Value.absent(),
+                Value<int?> lastMessageFromId = const Value.absent(),
+                Value<int?> lastMessageToId = const Value.absent(),
+                Value<int?> lastMessageGroupId = const Value.absent(),
+                Value<String?> lastMessageLocalPath = const Value.absent(),
               }) => ConversationsCompanion(
                 id: id,
                 userId: userId,
@@ -1406,6 +2018,14 @@ class $$ConversationsTableTableManager
                 targetId: targetId,
                 unreadCount: unreadCount,
                 updateTime: updateTime,
+                lastMessageContent: lastMessageContent,
+                lastMessageType: lastMessageType,
+                lastMessageStatus: lastMessageStatus,
+                lastMessageTimestamp: lastMessageTimestamp,
+                lastMessageFromId: lastMessageFromId,
+                lastMessageToId: lastMessageToId,
+                lastMessageGroupId: lastMessageGroupId,
+                lastMessageLocalPath: lastMessageLocalPath,
               ),
           createCompanionCallback:
               ({
@@ -1415,6 +2035,14 @@ class $$ConversationsTableTableManager
                 required int targetId,
                 Value<int> unreadCount = const Value.absent(),
                 required int updateTime,
+                Value<String?> lastMessageContent = const Value.absent(),
+                Value<int?> lastMessageType = const Value.absent(),
+                Value<int?> lastMessageStatus = const Value.absent(),
+                Value<int?> lastMessageTimestamp = const Value.absent(),
+                Value<int?> lastMessageFromId = const Value.absent(),
+                Value<int?> lastMessageToId = const Value.absent(),
+                Value<int?> lastMessageGroupId = const Value.absent(),
+                Value<String?> lastMessageLocalPath = const Value.absent(),
               }) => ConversationsCompanion.insert(
                 id: id,
                 userId: userId,
@@ -1422,6 +2050,14 @@ class $$ConversationsTableTableManager
                 targetId: targetId,
                 unreadCount: unreadCount,
                 updateTime: updateTime,
+                lastMessageContent: lastMessageContent,
+                lastMessageType: lastMessageType,
+                lastMessageStatus: lastMessageStatus,
+                lastMessageTimestamp: lastMessageTimestamp,
+                lastMessageFromId: lastMessageFromId,
+                lastMessageToId: lastMessageToId,
+                lastMessageGroupId: lastMessageGroupId,
+                lastMessageLocalPath: lastMessageLocalPath,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

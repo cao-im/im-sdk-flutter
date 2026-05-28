@@ -24,7 +24,7 @@ abstract class StorageInterface {
 
   Future<int> getUnreadCount(int userId);
 
-  Future<void> markAsRead(int userId, {int? groupId});
+  Future<void> markAsRead(int userId, {int? targetId, int? groupId});
 
   Future<int> insertConversation(Conversation conversation);
 

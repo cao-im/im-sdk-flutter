@@ -1,5 +1,5 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
+import 'package:flutter/widgets.dart';
 import 'storage_interface.dart';
 import 'drift/drift_storage.dart';
 
@@ -16,17 +16,9 @@ class StorageFactory {
       await _instance!.init();
 
       if (kIsWeb) {
-        print('[StorageFactory] ✅ Web 平台: WebDatabase (IndexedDB/OPFS)');
-      } else if (Platform.isWindows) {
-        print('[StorageFactory] ✅ Windows 平台: NativeDatabase (文件持久化)');
-      } else if (Platform.isLinux) {
-        print('[StorageFactory] ✅ Linux 平台: NativeDatabase (文件持久化)');
-      } else if (Platform.isMacOS) {
-        print('[StorageFactory] ✅ macOS 平台: NativeDatabase (文件持久化)');
-      } else if (Platform.isAndroid) {
-        print('[StorageFactory] ✅ Android 平台: NativeDatabase (文件持久化)');
-      } else if (Platform.isIOS) {
-        print('[StorageFactory] ✅ iOS 平台: NativeDatabase (文件持久化)');
+        print('[StorageFactory] ✅ Web 平台: WasmDatabase (IndexedDB/OPFS)');
+      } else {
+        print('[StorageFactory] ✅ ${_platformLabel()} 平台: NativeDatabase (文件持久化)');
       }
 
       print('[StorageFactory] ✅ 初始化完成: ${_instance.runtimeType}');
@@ -42,5 +34,22 @@ class StorageFactory {
   static void reset() {
     _instance?.close();
     _instance = null;
+  }
+
+  static String _platformLabel() {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'Android';
+      case TargetPlatform.iOS:
+        return 'iOS';
+      case TargetPlatform.macOS:
+        return 'macOS';
+      case TargetPlatform.windows:
+        return 'Windows';
+      case TargetPlatform.linux:
+        return 'Linux';
+      case TargetPlatform.fuchsia:
+        return 'Fuchsia';
+    }
   }
 }

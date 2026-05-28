@@ -83,7 +83,10 @@ class ConversationServiceImpl implements ConversationService {
     if (conversation.isGroup) {
       await _dbHelper.markAsRead(conversation.userId, groupId: conversation.targetId);
     } else {
-      await _dbHelper.markAsRead(conversation.userId);
+      await _dbHelper.markAsRead(
+        conversation.userId,
+        targetId: conversation.targetId,
+      );
     }
 
     _sendReadReceipt(conversation);

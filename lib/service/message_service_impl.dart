@@ -337,7 +337,11 @@ class MessageServiceImpl implements MessageService {
 
     try {
       final currentUserId = _getCurrentUserId();
-      await _databaseHelper.markAsRead(currentUserId, groupId: groupId);
+      await _databaseHelper.markAsRead(
+        currentUserId,
+        targetId: groupId == null ? targetId : null,
+        groupId: groupId,
+      );
 
       final unreadMessages = await getUnreadMessages(currentUserId);
       final filteredMessages = groupId != null

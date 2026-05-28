@@ -164,19 +164,42 @@ class WebStorage implements StorageInterface {
   }
 
   @override
-  Future<void> markAsRead(int userId, {int? groupId}) async {
+  Future<void> markAsRead(int userId, {int? targetId, int? groupId}) async {
     final prefs = await _preferences;
     final messages = _getMessagesList(prefs);
+    final conversations = _getConversationsList(prefs);
 
     for (var i = 0; i < messages.length; i++) {
       if (messages[i]['to_id'] == userId && (messages[i]['status'] as int? ?? 0) < 3) {
-        if (groupId == null || messages[i]['group_id'] == groupId) {
+        final matchesGroup = groupId != null && messages[i]['group_id'] == groupId;
+        final matchesPrivate = targetId != null &&
+            messages[i]['group_id'] == null &&
+            ((messages[i]['from_id'] == targetId && messages[i]['to_id'] == userId) ||
+                (messages[i]['from_id'] == userId && messages[i]['to_id'] == targetId));
+
+        if (matchesGroup || matchesPrivate) {
           messages[i]['status'] = 3;
         }
       }
     }
 
     await _saveMessagesList(prefs, messages);
+
+    for (var i = 0; i < conversations.length; i++) {
+      final isTargetConversation = conversations[i]['user_id'] == userId &&
+          ((groupId != null &&
+                  conversations[i]['target_type'] == 2 &&
+                  conversations[i]['target_id'] == groupId) ||
+              (targetId != null &&
+                  conversations[i]['target_type'] == 1 &&
+                  conversations[i]['target_id'] == targetId));
+
+      if (isTargetConversation) {
+        conversations[i]['unread_count'] = 0;
+      }
+    }
+
+    await _saveConversationsList(prefs, conversations);
   }
 
   @override

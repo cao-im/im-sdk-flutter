@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
+import 'package:flutter/widgets.dart';
 
-import '../../model/message.dart' as model;
 import '../../model/conversation.dart' as model_conv;
+import '../../model/message.dart' as model;
 import '../storage_interface.dart';
 import 'app_database.dart';
 
@@ -17,24 +16,16 @@ class DriftStorage implements StorageInterface {
     if (_isInitialized) return;
 
     print('[DriftStorage] 🗄️ 初始化 Drift (SQLite) 本地存储...');
-try {
+    try {
       _db = AppDatabase();
 
       print('[DriftStorage] ✅ 初始化完成');
       print('[DriftStorage] 📊 Schema 版本: ${_db.schemaVersion}');
 
       if (kIsWeb) {
-        print('[DriftStorage] 🌐 Web 平台: 内存模式');
-      } else if (Platform.isWindows) {
-        print('[DriftStorage] 💻 Windows 平台: NativeDatabase (文件持久化)');
-      } else if (Platform.isLinux) {
-        print('[DriftStorage] 💻 Linux 平台: NativeDatabase (文件持久化)');
-      } else if (Platform.isMacOS) {
-        print('[DriftStorage] 💻 macOS 平台: NativeDatabase (文件持久化)');
-      } else if (Platform.isAndroid) {
-        print('[DriftStorage] 📱 Android 平台: NativeDatabase (文件持久化)');
-      } else if (Platform.isIOS) {
-        print('[DriftStorage] 📱 iOS 平台: NativeDatabase (文件持久化)');
+        print('[DriftStorage] 🌐 Web 平台: WasmDatabase (持久化)');
+      } else {
+        print('[DriftStorage] ${_platformLabel()} 平台: NativeDatabase (文件持久化)');
       }
 
       _isInitialized = true;
@@ -58,7 +49,7 @@ try {
       localPath: Value(message.localPath),
     );
 
-    return await _db.into(_db.messages).insert(messageCompanion);
+    return _db.into(_db.messages).insert(messageCompanion);
   }
 
   @override
@@ -148,7 +139,7 @@ try {
   }
 
   @override
-  Future<void> markAsRead(int userId, {int? groupId}) async {
+  Future<void> markAsRead(int userId, {int? targetId, int? groupId}) async {
     if (groupId != null) {
       await (_db.update(_db.messages)
             ..where((tbl) =>
@@ -156,10 +147,27 @@ try {
                 tbl.toId.equals(userId) &
                 tbl.status.isSmallerThan(Constant(model.MessageStatus.read.value))))
           .write(MessagesCompanion(status: Value(model.MessageStatus.read.value)));
-    } else {
       await (_db.update(_db.conversations)
-            ..where((tbl) => tbl.userId.equals(userId)))
-          .write(ConversationsCompanion(unreadCount: Value(0)));
+            ..where((tbl) =>
+                tbl.userId.equals(userId) &
+                tbl.targetType.equals(model_conv.TargetType.group.value) &
+                tbl.targetId.equals(groupId)))
+          .write(const ConversationsCompanion(unreadCount: Value(0)));
+    } else if (targetId != null) {
+      await (_db.update(_db.messages)
+            ..where((tbl) =>
+                ((tbl.fromId.equals(targetId) & tbl.toId.equals(userId)) |
+                    (tbl.fromId.equals(userId) & tbl.toId.equals(targetId))) &
+                tbl.groupId.isNull() &
+                tbl.status.isSmallerThan(Constant(model.MessageStatus.read.value))))
+          .write(MessagesCompanion(status: Value(model.MessageStatus.read.value)));
+
+      await (_db.update(_db.conversations)
+            ..where((tbl) =>
+                tbl.userId.equals(userId) &
+                tbl.targetType.equals(model_conv.TargetType.private.value) &
+                tbl.targetId.equals(targetId)))
+          .write(const ConversationsCompanion(unreadCount: Value(0)));
     }
   }
 
@@ -171,9 +179,17 @@ try {
       targetId: conversation.targetId,
       unreadCount: Value(conversation.unreadCount),
       updateTime: conversation.updateTime,
+      lastMessageContent: Value(conversation.lastMessage?.content),
+      lastMessageType: Value(conversation.lastMessage?.msgType.value),
+      lastMessageStatus: Value(conversation.lastMessage?.status.value),
+      lastMessageTimestamp: Value(conversation.lastMessage?.timestamp),
+      lastMessageFromId: Value(conversation.lastMessage?.fromId),
+      lastMessageToId: Value(conversation.lastMessage?.toId),
+      lastMessageGroupId: Value(conversation.lastMessage?.groupId),
+      lastMessageLocalPath: Value(conversation.lastMessage?.localPath),
     );
 
-    return await _db.into(_db.conversations).insert(convCompanion);
+    return _db.into(_db.conversations).insert(convCompanion);
   }
 
   @override
@@ -196,8 +212,16 @@ try {
 
     await (_db.update(_db.conversations)..where((tbl) => tbl.id.equals(conversation.id!)))
         .write(ConversationsCompanion(
-              updateTime: Value(DateTime.now().millisecondsSinceEpoch),
+              updateTime: Value(conversation.updateTime),
               unreadCount: Value(conversation.unreadCount),
+              lastMessageContent: Value(conversation.lastMessage?.content),
+              lastMessageType: Value(conversation.lastMessage?.msgType.value),
+              lastMessageStatus: Value(conversation.lastMessage?.status.value),
+              lastMessageTimestamp: Value(conversation.lastMessage?.timestamp),
+              lastMessageFromId: Value(conversation.lastMessage?.fromId),
+              lastMessageToId: Value(conversation.lastMessage?.toId),
+              lastMessageGroupId: Value(conversation.lastMessage?.groupId),
+              lastMessageLocalPath: Value(conversation.lastMessage?.localPath),
             ));
   }
 
@@ -243,8 +267,55 @@ try {
       userId: row.userId,
       targetType: model_conv.TargetType.fromValue(row.targetType),
       targetId: row.targetId,
+      lastMessage: _buildLastMessage(row),
       unreadCount: row.unreadCount,
       updateTime: row.updateTime,
     );
+  }
+
+  model.Message? _buildLastMessage(Conversation row) {
+    final timestamp = row.lastMessageTimestamp;
+    final content = row.lastMessageContent;
+    final msgType = row.lastMessageType;
+    final status = row.lastMessageStatus;
+    final fromId = row.lastMessageFromId;
+    final toId = row.lastMessageToId;
+
+    if (timestamp == null ||
+        content == null ||
+        msgType == null ||
+        status == null ||
+        fromId == null ||
+        toId == null) {
+      return null;
+    }
+
+    return model.Message(
+      fromId: fromId,
+      toId: toId,
+      groupId: row.lastMessageGroupId,
+      content: content,
+      msgType: model.MessageType.fromValue(msgType),
+      status: model.MessageStatus.fromValue(status),
+      timestamp: timestamp,
+      localPath: row.lastMessageLocalPath,
+    );
+  }
+
+  String _platformLabel() {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return '📱 Android';
+      case TargetPlatform.iOS:
+        return '📱 iOS';
+      case TargetPlatform.macOS:
+        return '💻 macOS';
+      case TargetPlatform.windows:
+        return '💻 Windows';
+      case TargetPlatform.linux:
+        return '💻 Linux';
+      case TargetPlatform.fuchsia:
+        return '🧪 Fuchsia';
+    }
   }
 }

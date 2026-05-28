@@ -1,9 +1,8 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
-import '../../model/message.dart' as model;
-import '../../model/conversation.dart' as model_conv;
-import '../storage_interface.dart';
 import '../client/im_client.dart';
+import '../model/conversation.dart' as model_conv;
+import '../model/message.dart' as model;
+import 'storage_interface.dart';
 
 class ApiStorage implements StorageInterface {
   static final ApiStorage _instance = ApiStorage._internal();
@@ -147,8 +146,9 @@ class ApiStorage implements StorageInterface {
   }
 
   @override
-  Future<void> markAsRead(int userId, {int? groupId}) async {
+  Future<void> markAsRead(int userId, {int? targetId, int? groupId}) async {
     final data = {'userId': userId};
+    if (targetId != null) data['targetId'] = targetId;
     if (groupId != null) data['groupId'] = groupId!;
     
     await _request('POST', '/messages/mark-read', data: data);
