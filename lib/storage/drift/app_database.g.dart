@@ -26,9 +26,10 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
   late final GeneratedColumn<int> mid = GeneratedColumn<int>(
     'mid',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
+    defaultValue: const Constant(0),
   );
   static const VerificationMeta _fromIdMeta = const VerificationMeta('fromId');
   @override
@@ -314,7 +315,7 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
       mid: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}mid'],
-      ),
+      )!,
       fromId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}from_id'],
@@ -378,7 +379,7 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
 
 class Message extends DataClass implements Insertable<Message> {
   final int id;
-  final int? mid;
+  final int mid;
   final int fromId;
   final int toId;
   final int? groupId;
@@ -394,7 +395,7 @@ class Message extends DataClass implements Insertable<Message> {
   final int readStatus;
   const Message({
     required this.id,
-    this.mid,
+    required this.mid,
     required this.fromId,
     required this.toId,
     this.groupId,
@@ -413,9 +414,7 @@ class Message extends DataClass implements Insertable<Message> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    if (!nullToAbsent || mid != null) {
-      map['mid'] = Variable<int>(mid);
-    }
+    map['mid'] = Variable<int>(mid);
     map['from_id'] = Variable<int>(fromId);
     map['to_id'] = Variable<int>(toId);
     if (!nullToAbsent || groupId != null) {
@@ -443,7 +442,7 @@ class Message extends DataClass implements Insertable<Message> {
   MessagesCompanion toCompanion(bool nullToAbsent) {
     return MessagesCompanion(
       id: Value(id),
-      mid: mid == null && nullToAbsent ? const Value.absent() : Value(mid),
+      mid: Value(mid),
       fromId: Value(fromId),
       toId: Value(toId),
       groupId: groupId == null && nullToAbsent
@@ -475,7 +474,7 @@ class Message extends DataClass implements Insertable<Message> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Message(
       id: serializer.fromJson<int>(json['id']),
-      mid: serializer.fromJson<int?>(json['mid']),
+      mid: serializer.fromJson<int>(json['mid']),
       fromId: serializer.fromJson<int>(json['fromId']),
       toId: serializer.fromJson<int>(json['toId']),
       groupId: serializer.fromJson<int?>(json['groupId']),
@@ -496,7 +495,7 @@ class Message extends DataClass implements Insertable<Message> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
-      'mid': serializer.toJson<int?>(mid),
+      'mid': serializer.toJson<int>(mid),
       'fromId': serializer.toJson<int>(fromId),
       'toId': serializer.toJson<int>(toId),
       'groupId': serializer.toJson<int?>(groupId),
@@ -515,7 +514,7 @@ class Message extends DataClass implements Insertable<Message> {
 
   Message copyWith({
     int? id,
-    Value<int?> mid = const Value.absent(),
+    int? mid,
     int? fromId,
     int? toId,
     Value<int?> groupId = const Value.absent(),
@@ -531,7 +530,7 @@ class Message extends DataClass implements Insertable<Message> {
     int? readStatus,
   }) => Message(
     id: id ?? this.id,
-    mid: mid.present ? mid.value : this.mid,
+    mid: mid ?? this.mid,
     fromId: fromId ?? this.fromId,
     toId: toId ?? this.toId,
     groupId: groupId.present ? groupId.value : this.groupId,
@@ -633,7 +632,7 @@ class Message extends DataClass implements Insertable<Message> {
 
 class MessagesCompanion extends UpdateCompanion<Message> {
   final Value<int> id;
-  final Value<int?> mid;
+  final Value<int> mid;
   final Value<int> fromId;
   final Value<int> toId;
   final Value<int?> groupId;
@@ -724,7 +723,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
 
   MessagesCompanion copyWith({
     Value<int>? id,
-    Value<int?>? mid,
+    Value<int>? mid,
     Value<int>? fromId,
     Value<int>? toId,
     Value<int?>? groupId,
@@ -2022,6 +2021,26 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _phoneMeta = const VerificationMeta('phone');
+  @override
+  late final GeneratedColumn<String> phone = GeneratedColumn<String>(
+    'phone',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _emailMeta = const VerificationMeta('email');
+  @override
+  late final GeneratedColumn<String> email = GeneratedColumn<String>(
+    'email',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _onlineStatusMeta = const VerificationMeta(
     'onlineStatus',
   );
@@ -2095,6 +2114,8 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     signature,
     gender,
     location,
+    phone,
+    email,
     onlineStatus,
     lastOnlineTime,
     remark,
@@ -2153,6 +2174,18 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
       context.handle(
         _locationMeta,
         location.isAcceptableOrUnknown(data['location']!, _locationMeta),
+      );
+    }
+    if (data.containsKey('phone')) {
+      context.handle(
+        _phoneMeta,
+        phone.isAcceptableOrUnknown(data['phone']!, _phoneMeta),
+      );
+    }
+    if (data.containsKey('email')) {
+      context.handle(
+        _emailMeta,
+        email.isAcceptableOrUnknown(data['email']!, _emailMeta),
       );
     }
     if (data.containsKey('online_status')) {
@@ -2236,6 +2269,14 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         DriftSqlType.string,
         data['${effectivePrefix}location'],
       )!,
+      phone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}phone'],
+      )!,
+      email: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}email'],
+      )!,
       onlineStatus: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}online_status'],
@@ -2277,6 +2318,8 @@ class Contact extends DataClass implements Insertable<Contact> {
   final String? signature;
   final int gender;
   final String location;
+  final String phone;
+  final String email;
   final int onlineStatus;
   final int? lastOnlineTime;
   final String remark;
@@ -2291,6 +2334,8 @@ class Contact extends DataClass implements Insertable<Contact> {
     this.signature,
     required this.gender,
     required this.location,
+    required this.phone,
+    required this.email,
     required this.onlineStatus,
     this.lastOnlineTime,
     required this.remark,
@@ -2310,6 +2355,8 @@ class Contact extends DataClass implements Insertable<Contact> {
     }
     map['gender'] = Variable<int>(gender);
     map['location'] = Variable<String>(location);
+    map['phone'] = Variable<String>(phone);
+    map['email'] = Variable<String>(email);
     map['online_status'] = Variable<int>(onlineStatus);
     if (!nullToAbsent || lastOnlineTime != null) {
       map['last_online_time'] = Variable<int>(lastOnlineTime);
@@ -2332,6 +2379,8 @@ class Contact extends DataClass implements Insertable<Contact> {
           : Value(signature),
       gender: Value(gender),
       location: Value(location),
+      phone: Value(phone),
+      email: Value(email),
       onlineStatus: Value(onlineStatus),
       lastOnlineTime: lastOnlineTime == null && nullToAbsent
           ? const Value.absent()
@@ -2356,6 +2405,8 @@ class Contact extends DataClass implements Insertable<Contact> {
       signature: serializer.fromJson<String?>(json['signature']),
       gender: serializer.fromJson<int>(json['gender']),
       location: serializer.fromJson<String>(json['location']),
+      phone: serializer.fromJson<String>(json['phone']),
+      email: serializer.fromJson<String>(json['email']),
       onlineStatus: serializer.fromJson<int>(json['onlineStatus']),
       lastOnlineTime: serializer.fromJson<int?>(json['lastOnlineTime']),
       remark: serializer.fromJson<String>(json['remark']),
@@ -2375,6 +2426,8 @@ class Contact extends DataClass implements Insertable<Contact> {
       'signature': serializer.toJson<String?>(signature),
       'gender': serializer.toJson<int>(gender),
       'location': serializer.toJson<String>(location),
+      'phone': serializer.toJson<String>(phone),
+      'email': serializer.toJson<String>(email),
       'onlineStatus': serializer.toJson<int>(onlineStatus),
       'lastOnlineTime': serializer.toJson<int?>(lastOnlineTime),
       'remark': serializer.toJson<String>(remark),
@@ -2392,6 +2445,8 @@ class Contact extends DataClass implements Insertable<Contact> {
     Value<String?> signature = const Value.absent(),
     int? gender,
     String? location,
+    String? phone,
+    String? email,
     int? onlineStatus,
     Value<int?> lastOnlineTime = const Value.absent(),
     String? remark,
@@ -2406,6 +2461,8 @@ class Contact extends DataClass implements Insertable<Contact> {
     signature: signature.present ? signature.value : this.signature,
     gender: gender ?? this.gender,
     location: location ?? this.location,
+    phone: phone ?? this.phone,
+    email: email ?? this.email,
     onlineStatus: onlineStatus ?? this.onlineStatus,
     lastOnlineTime: lastOnlineTime.present
         ? lastOnlineTime.value
@@ -2424,6 +2481,8 @@ class Contact extends DataClass implements Insertable<Contact> {
       signature: data.signature.present ? data.signature.value : this.signature,
       gender: data.gender.present ? data.gender.value : this.gender,
       location: data.location.present ? data.location.value : this.location,
+      phone: data.phone.present ? data.phone.value : this.phone,
+      email: data.email.present ? data.email.value : this.email,
       onlineStatus: data.onlineStatus.present
           ? data.onlineStatus.value
           : this.onlineStatus,
@@ -2449,6 +2508,8 @@ class Contact extends DataClass implements Insertable<Contact> {
           ..write('signature: $signature, ')
           ..write('gender: $gender, ')
           ..write('location: $location, ')
+          ..write('phone: $phone, ')
+          ..write('email: $email, ')
           ..write('onlineStatus: $onlineStatus, ')
           ..write('lastOnlineTime: $lastOnlineTime, ')
           ..write('remark: $remark, ')
@@ -2468,6 +2529,8 @@ class Contact extends DataClass implements Insertable<Contact> {
     signature,
     gender,
     location,
+    phone,
+    email,
     onlineStatus,
     lastOnlineTime,
     remark,
@@ -2486,6 +2549,8 @@ class Contact extends DataClass implements Insertable<Contact> {
           other.signature == this.signature &&
           other.gender == this.gender &&
           other.location == this.location &&
+          other.phone == this.phone &&
+          other.email == this.email &&
           other.onlineStatus == this.onlineStatus &&
           other.lastOnlineTime == this.lastOnlineTime &&
           other.remark == this.remark &&
@@ -2502,6 +2567,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
   final Value<String?> signature;
   final Value<int> gender;
   final Value<String> location;
+  final Value<String> phone;
+  final Value<String> email;
   final Value<int> onlineStatus;
   final Value<int?> lastOnlineTime;
   final Value<String> remark;
@@ -2516,6 +2583,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.signature = const Value.absent(),
     this.gender = const Value.absent(),
     this.location = const Value.absent(),
+    this.phone = const Value.absent(),
+    this.email = const Value.absent(),
     this.onlineStatus = const Value.absent(),
     this.lastOnlineTime = const Value.absent(),
     this.remark = const Value.absent(),
@@ -2531,6 +2600,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.signature = const Value.absent(),
     this.gender = const Value.absent(),
     this.location = const Value.absent(),
+    this.phone = const Value.absent(),
+    this.email = const Value.absent(),
     this.onlineStatus = const Value.absent(),
     this.lastOnlineTime = const Value.absent(),
     this.remark = const Value.absent(),
@@ -2547,6 +2618,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Expression<String>? signature,
     Expression<int>? gender,
     Expression<String>? location,
+    Expression<String>? phone,
+    Expression<String>? email,
     Expression<int>? onlineStatus,
     Expression<int>? lastOnlineTime,
     Expression<String>? remark,
@@ -2562,6 +2635,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       if (signature != null) 'signature': signature,
       if (gender != null) 'gender': gender,
       if (location != null) 'location': location,
+      if (phone != null) 'phone': phone,
+      if (email != null) 'email': email,
       if (onlineStatus != null) 'online_status': onlineStatus,
       if (lastOnlineTime != null) 'last_online_time': lastOnlineTime,
       if (remark != null) 'remark': remark,
@@ -2579,6 +2654,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Value<String?>? signature,
     Value<int>? gender,
     Value<String>? location,
+    Value<String>? phone,
+    Value<String>? email,
     Value<int>? onlineStatus,
     Value<int?>? lastOnlineTime,
     Value<String>? remark,
@@ -2594,6 +2671,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       signature: signature ?? this.signature,
       gender: gender ?? this.gender,
       location: location ?? this.location,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
       onlineStatus: onlineStatus ?? this.onlineStatus,
       lastOnlineTime: lastOnlineTime ?? this.lastOnlineTime,
       remark: remark ?? this.remark,
@@ -2627,6 +2706,12 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     if (location.present) {
       map['location'] = Variable<String>(location.value);
     }
+    if (phone.present) {
+      map['phone'] = Variable<String>(phone.value);
+    }
+    if (email.present) {
+      map['email'] = Variable<String>(email.value);
+    }
     if (onlineStatus.present) {
       map['online_status'] = Variable<int>(onlineStatus.value);
     }
@@ -2658,6 +2743,8 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
           ..write('signature: $signature, ')
           ..write('gender: $gender, ')
           ..write('location: $location, ')
+          ..write('phone: $phone, ')
+          ..write('email: $email, ')
           ..write('onlineStatus: $onlineStatus, ')
           ..write('lastOnlineTime: $lastOnlineTime, ')
           ..write('remark: $remark, ')
@@ -2689,7 +2776,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
 typedef $$MessagesTableCreateCompanionBuilder =
     MessagesCompanion Function({
       Value<int> id,
-      Value<int?> mid,
+      Value<int> mid,
       required int fromId,
       required int toId,
       Value<int?> groupId,
@@ -2707,7 +2794,7 @@ typedef $$MessagesTableCreateCompanionBuilder =
 typedef $$MessagesTableUpdateCompanionBuilder =
     MessagesCompanion Function({
       Value<int> id,
-      Value<int?> mid,
+      Value<int> mid,
       Value<int> fromId,
       Value<int> toId,
       Value<int?> groupId,
@@ -2981,7 +3068,7 @@ class $$MessagesTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                Value<int?> mid = const Value.absent(),
+                Value<int> mid = const Value.absent(),
                 Value<int> fromId = const Value.absent(),
                 Value<int> toId = const Value.absent(),
                 Value<int?> groupId = const Value.absent(),
@@ -3015,7 +3102,7 @@ class $$MessagesTableTableManager
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                Value<int?> mid = const Value.absent(),
+                Value<int> mid = const Value.absent(),
                 required int fromId,
                 required int toId,
                 Value<int?> groupId = const Value.absent(),
@@ -3561,6 +3648,8 @@ typedef $$ContactsTableCreateCompanionBuilder =
       Value<String?> signature,
       Value<int> gender,
       Value<String> location,
+      Value<String> phone,
+      Value<String> email,
       Value<int> onlineStatus,
       Value<int?> lastOnlineTime,
       Value<String> remark,
@@ -3577,6 +3666,8 @@ typedef $$ContactsTableUpdateCompanionBuilder =
       Value<String?> signature,
       Value<int> gender,
       Value<String> location,
+      Value<String> phone,
+      Value<String> email,
       Value<int> onlineStatus,
       Value<int?> lastOnlineTime,
       Value<String> remark,
@@ -3626,6 +3717,16 @@ class $$ContactsTableFilterComposer
 
   ColumnFilters<String> get location => $composableBuilder(
     column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get phone => $composableBuilder(
+    column: $table.phone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get email => $composableBuilder(
+    column: $table.email,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3704,6 +3805,16 @@ class $$ContactsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get phone => $composableBuilder(
+    column: $table.phone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get email => $composableBuilder(
+    column: $table.email,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get onlineStatus => $composableBuilder(
     column: $table.onlineStatus,
     builder: (column) => ColumnOrderings(column),
@@ -3765,6 +3876,12 @@ class $$ContactsTableAnnotationComposer
   GeneratedColumn<String> get location =>
       $composableBuilder(column: $table.location, builder: (column) => column);
 
+  GeneratedColumn<String> get phone =>
+      $composableBuilder(column: $table.phone, builder: (column) => column);
+
+  GeneratedColumn<String> get email =>
+      $composableBuilder(column: $table.email, builder: (column) => column);
+
   GeneratedColumn<int> get onlineStatus => $composableBuilder(
     column: $table.onlineStatus,
     builder: (column) => column,
@@ -3825,6 +3942,8 @@ class $$ContactsTableTableManager
                 Value<String?> signature = const Value.absent(),
                 Value<int> gender = const Value.absent(),
                 Value<String> location = const Value.absent(),
+                Value<String> phone = const Value.absent(),
+                Value<String> email = const Value.absent(),
                 Value<int> onlineStatus = const Value.absent(),
                 Value<int?> lastOnlineTime = const Value.absent(),
                 Value<String> remark = const Value.absent(),
@@ -3839,6 +3958,8 @@ class $$ContactsTableTableManager
                 signature: signature,
                 gender: gender,
                 location: location,
+                phone: phone,
+                email: email,
                 onlineStatus: onlineStatus,
                 lastOnlineTime: lastOnlineTime,
                 remark: remark,
@@ -3855,6 +3976,8 @@ class $$ContactsTableTableManager
                 Value<String?> signature = const Value.absent(),
                 Value<int> gender = const Value.absent(),
                 Value<String> location = const Value.absent(),
+                Value<String> phone = const Value.absent(),
+                Value<String> email = const Value.absent(),
                 Value<int> onlineStatus = const Value.absent(),
                 Value<int?> lastOnlineTime = const Value.absent(),
                 Value<String> remark = const Value.absent(),
@@ -3869,6 +3992,8 @@ class $$ContactsTableTableManager
                 signature: signature,
                 gender: gender,
                 location: location,
+                phone: phone,
+                email: email,
                 onlineStatus: onlineStatus,
                 lastOnlineTime: lastOnlineTime,
                 remark: remark,

@@ -15,7 +15,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(this.userId) : super(_openConnection(userId));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -48,6 +48,13 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 4) {
         await m.addColumn(messages, messages.mid);
+      }
+      if (from < 5) {
+        await customStatement('UPDATE messages SET mid = 0 WHERE mid IS NULL');
+      }
+      if (from < 6) {
+        await m.addColumn(contacts, contacts.phone);
+        await m.addColumn(contacts, contacts.email);
       }
     },
   );

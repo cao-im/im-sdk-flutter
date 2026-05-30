@@ -15,6 +15,10 @@ class Contacts extends Table {
 
   TextColumn get location => text().withDefault(const Constant(''))();
 
+  TextColumn get phone => text().withDefault(const Constant(''))();
+
+  TextColumn get email => text().withDefault(const Constant(''))();
+
   IntColumn get onlineStatus => integer().withDefault(const Constant(0))();
 
   IntColumn get lastOnlineTime => integer().nullable()();

@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 class Messages extends Table {
   IntColumn get id => integer().autoIncrement()();
 
-  IntColumn get mid => integer().nullable()();
+  IntColumn get mid => integer().withDefault(const Constant(0))();
 
   IntColumn get fromId => integer()();
 
