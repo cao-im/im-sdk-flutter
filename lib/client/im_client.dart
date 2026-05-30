@@ -267,7 +267,11 @@ class IMClient {
       print('📍[IMClient] 🔄 切换用户数据库 (userId=$currentUserId)...');
       try {
         _storage = await StorageFactory.getInstance(userId: currentUserId);
-        print('✅[IMClient] 用户数据库切换完成');
+        print('✅[IMClient] 用户数据库切换完成, 存储类型: ${_storage.runtimeType}');
+
+        print('📍[IMClient] 🔄 重新初始化服务 (更新存储引用)...');
+        _initServices();
+        print('✅[IMClient] 服务重新初始化完成');
       } catch (e) {
         print('⚠️[IMClient] 用户数据库切换失败 (非致命): $e');
       }
@@ -1007,29 +1011,40 @@ class IMClient {
 
   Future<void> _createFriendConversationAndSystemMessage(
       int friendId, int myId, String status) async {
-    if (currentUserId == null) return;
+    if (currentUserId == null) {
+      _log.e('❌ 创建好友会话失败: currentUserId 为空');
+      return;
+    }
 
     try {
+      _log.i('🔍 开始创建好友会话: friendId=$friendId, myId=$myId, currentUserId=$currentUserId');
+      _log.i('🔍 存储类型: ${_storage.runtimeType}');
+
       final conversation = await _conversationService.getOrCreateConversation(
         userId: currentUserId!,
         targetType: 1,
         targetId: friendId,
       );
 
+      _log.i('✅ 会话创建/获取成功: conversationId=${conversation.id}, targetType=${conversation.targetType}, targetId=${conversation.targetId}');
+
       final systemContent = status == 'accepted'
           ? '你们已成为好友，可以开始聊天了'
           : '好友请求已被拒绝';
 
       final systemMessage = Message(
-        fromId: 0,
+        fromId: friendId,
         toId: currentUserId!,
         content: systemContent,
-        msgType: MessageType.system,
+        msgType: MessageType.text,
         status: MessageStatus.read,
         timestamp: DateTime.now().millisecondsSinceEpoch,
       );
 
-      await _storage.insertMessage(systemMessage);
+      _log.i('📝 准备插入系统消息: fromId=${systemMessage.fromId}, toId=${systemMessage.toId}, msgType=${systemMessage.msgType.value}');
+
+      final messageId = await _storage.insertMessage(systemMessage);
+      _log.i('✅ 消息插入成功: messageId=$messageId');
 
       final updatedConversation = conversation.copyWith(
         lastMessage: systemMessage,
@@ -1038,6 +1053,7 @@ class IMClient {
       );
 
       if (conversation.id != null) {
+        _log.i('🔄 更新会话最后消息: conversationId=${conversation.id}');
         await _conversationService.updateLastMessage(conversation.id!, systemMessage);
 
         if (status == 'accepted') {
@@ -1045,7 +1061,10 @@ class IMClient {
             conversation.id!,
             count: 1,
           );
+          _log.i('✅ 未读数+1');
         }
+      } else {
+        _log.w('⚠️ 会话ID为空，跳过更新操作');
       }
 
       for (final listener in _messageListeners) {
@@ -1054,9 +1073,10 @@ class IMClient {
       _eventBus.fire(MessageReceivedEvent(message: systemMessage));
       _eventBus.fire(ConversationUpdatedEvent(conversation: updatedConversation));
 
-      _log.i('已创建好友会话并插入系统消息: friendId=$friendId, content=$systemContent');
-    } catch (e) {
+      _log.i('✅ 已创建好友会话并插入系统消息: friendId=$friendId, content=$systemContent');
+    } catch (e, stackTrace) {
       _log.e('[IMClient] 创建好友会话失败', error: e);
+      _log.e('[IMClient] 堆栈信息: $stackTrace');
     }
   }
 }

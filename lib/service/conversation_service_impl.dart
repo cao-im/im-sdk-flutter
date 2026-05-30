@@ -37,7 +37,12 @@ class ConversationServiceImpl implements ConversationService {
     required int targetType,
     required int targetId,
   }) async {
+    _log.i('🔍 [ConversationService] getOrCreateConversation 开始: userId=$userId, targetType=$targetType, targetId=$targetId');
+    _log.i('🔍 [ConversationService] dbHelper 类型: ${_dbHelper.runtimeType}');
+
     final conversations = await _dbHelper.getConversations(userId);
+    _log.i('🔍 [ConversationService] 获取到 ${conversations.length} 个会话');
+
     final existing = conversations.where((c) =>
       c.userId == userId &&
       c.targetType.value == targetType &&
@@ -45,8 +50,11 @@ class ConversationServiceImpl implements ConversationService {
     ).toList();
 
     if (existing.isNotEmpty) {
+      _log.i('✅ [ConversationService] 找到已存在的会话: id=${existing.first.id}');
       return existing.first;
     }
+
+    _log.i('📝 [ConversationService] 未找到匹配会话，创建新会话...');
 
     final now = DateTime.now().millisecondsSinceEpoch;
     final conversation = Conversation(
@@ -57,7 +65,10 @@ class ConversationServiceImpl implements ConversationService {
       updateTime: now,
     );
 
+    _log.i('💾 [ConversationService] 调用 insertConversation...');
     final id = await _dbHelper.insertConversation(conversation);
+    _log.i('✅ [ConversationService] 会话插入成功: 新ID=$id');
+
     final created = conversation.copyWith(id: id);
     _eventBus.fire(ConversationUpdatedEvent(conversation: created));
     return created;

@@ -183,6 +183,8 @@ class DriftStorage implements StorageInterface {
 
   @override
   Future<int> insertConversation(model_conv.Conversation conversation) async {
+    print('[DriftStorage] 📝 insertConversation 被调用: userId=${conversation.userId}, targetId=${conversation.targetId}, targetType=${conversation.targetType.value}');
+
     final convCompanion = ConversationsCompanion.insert(
       userId: conversation.userId,
       targetType: conversation.targetType.value,
@@ -199,11 +201,21 @@ class DriftStorage implements StorageInterface {
       lastMessageLocalPath: Value(conversation.lastMessage?.localPath),
     );
 
-    return _db.into(_db.conversations).insert(convCompanion);
+    try {
+      final id = await _db.into(_db.conversations).insert(convCompanion);
+      print('[DriftStorage] ✅ insertConversation 成功: 新会话ID=$id');
+      return id;
+    } catch (e, stackTrace) {
+      print('[DriftStorage] ❌ insertConversation 失败: $e');
+      print('[DriftStorage] 📍 堆栈: $stackTrace');
+      rethrow;
+    }
   }
 
   @override
   Future<List<model_conv.Conversation>> getConversations(int userId) async {
+    print('[DriftStorage] 🔍 getConversations 被调用: userId=$userId');
+
     final query = _db.select(_db.conversations);
 
     if (userId != 0) {
@@ -213,6 +225,8 @@ class DriftStorage implements StorageInterface {
     query.orderBy([(t) => OrderingTerm.desc(t.updateTime)]);
 
     final rows = await query.get();
+    print('[DriftStorage] ✅ getConversations 完成: 找到 ${rows.length} 个会话');
+
     return rows.map((row) => _toConversation(row)).toList();
   }
 
