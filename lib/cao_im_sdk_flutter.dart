@@ -23,3 +23,4 @@ export 'event/im_event.dart';
 export 'storage/storage_interface.dart';
 export 'storage/storage_factory.dart';
 export 'utils/logger.dart';
+export 'utils/network_log_interceptor.dart';

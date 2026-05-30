@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../client/im_client.dart';
 import '../model/conversation.dart' as model_conv;
 import '../model/message.dart' as model;
+import '../utils/network_log_interceptor.dart';
 import 'storage_interface.dart';
 
 class ApiStorage implements StorageInterface {
@@ -22,6 +23,8 @@ class ApiStorage implements StorageInterface {
         'Content-Type': 'application/json',
       },
     ));
+
+    _dio.interceptors.add(NetworkLogInterceptor());
 
     final client = IMClient.instance;
     _baseUrl = client.serverUrl.replaceFirst('ws://', 'http://').replaceFirst('wss://', 'https://');
