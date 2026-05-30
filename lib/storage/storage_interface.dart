@@ -2,7 +2,7 @@ import '../model/message.dart';
 import '../model/conversation.dart';
 
 abstract class StorageInterface {
-  Future<void> init();
+  Future<void> init({int? userId});
 
   Future<int> insertMessage(Message message);
 

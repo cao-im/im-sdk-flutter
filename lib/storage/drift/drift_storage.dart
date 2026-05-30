@@ -9,15 +9,25 @@ import 'app_database.dart';
 
 class DriftStorage implements StorageInterface {
   late AppDatabase _db;
+  int? _currentUserId;
   bool _isInitialized = false;
 
   @override
-  Future<void> init() async {
-    if (_isInitialized) return;
+  Future<void> init({int? userId}) async {
+    if (_isInitialized && _currentUserId == userId) return;
 
-    print('[DriftStorage] 🗄️ 初始化 Drift (SQLite) 本地存储...');
+    if (_isInitialized && _currentUserId != userId) {
+      print('[DriftStorage] 🔄 切换账号: $_currentUserId -> $userId, 关闭旧连接');
+      await close();
+    }
+
+    print('[DriftStorage] 🗄️ 初始化 Drift (SQLite) 本地存储... (userId=$userId)');
     try {
-      _db = AppDatabase();
+      if (userId == null) {
+        throw ArgumentError('userId 不能为空，必须指定当前登录用户');
+      }
+      _currentUserId = userId;
+      _db = AppDatabase(userId);
 
       print('[DriftStorage] ✅ 初始化完成');
       print('[DriftStorage] 📊 Schema 版本: ${_db.schemaVersion}');

@@ -29,6 +29,16 @@ class Conversations extends Table {
 
   TextColumn get lastMessageLocalPath => text().nullable()();
 
+  IntColumn get lastMsgId => integer().nullable()();
+
+  IntColumn get isTop => integer().withDefault(const Constant(0))();
+
+  IntColumn get isMute => integer().withDefault(const Constant(0))();
+
+  IntColumn get isDeleted => integer().withDefault(const Constant(0))();
+
+  TextColumn get draftContent => text().nullable()();
+
   @override
   List<Set<Column<Object>>> get uniqueKeys => [
     {userId, targetType, targetId},

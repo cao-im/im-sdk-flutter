@@ -172,7 +172,7 @@ class IMClient {
     _eventBus = EventBus();
     print('📍[IMClient] 初始化存储 (自动检测平台)...');
     try {
-      _storage = await StorageFactory.getInstance();
+      _storage = await StorageFactory.getInstance(userId: currentUserId);
       print('✅[IMClient] 存储初始化完成');
     } catch (e, stack) {
       print('⚠️[IMClient] 存储初始化失败 (非致命): $e');
@@ -262,6 +262,16 @@ class IMClient {
       currentUserId = userId;
     }
     print('📍[IMClient] token已设置, serverUrl: $serverUrl, currentUserId: $currentUserId');
+
+    if (currentUserId != null) {
+      print('📍[IMClient] 🔄 切换用户数据库 (userId=$currentUserId)...');
+      try {
+        _storage = await StorageFactory.getInstance(userId: currentUserId);
+        print('✅[IMClient] 用户数据库切换完成');
+      } catch (e) {
+        print('⚠️[IMClient] 用户数据库切换失败 (非致命): $e');
+      }
+    }
 
     // 📝 初始化已读回执管理器（支持断网缓存+重连补发）
     _initReadReceiptManager();
@@ -355,6 +365,8 @@ class IMClient {
 
     token = '';
     currentUserId = null;
+
+    StorageFactory.reset();
   }
 
   ConnectionStatus get connectionStatus => _connectionManager.status;
@@ -510,7 +522,7 @@ class IMClient {
         print('📍[IMClient] ❌ _storage 未初始化或出错: $e');
         // 尝试重新初始化
         try {
-          _storage = await StorageFactory.getInstance();
+          _storage = await StorageFactory.getInstance(userId: currentUserId);
           print('📍[IMClient] 🔄 _storage 重新初始化成功');
         } catch (e2) {
           print('📍[IMClient] ❌ _storage 重新初始化也失败: $e2');
@@ -1052,7 +1064,7 @@ class IMClient {
 /// ✅ 空实现的回退存储（当真实存储初始化失败时使用）
 class _FallbackStorage implements StorageInterface {
   @override
-  Future<void> init() async {}
+  Future<void> init({int? userId}) async {}
 
   @override
   Future<int> insertMessage(Message message) async => 0;

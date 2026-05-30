@@ -14,7 +14,7 @@ class WebStorage implements StorageInterface {
   SharedPreferences? _prefs;
 
   @override
-  Future<void> init() async {
+  Future<void> init({int? userId}) async {
     _prefs ??= await SharedPreferences.getInstance();
   }
 

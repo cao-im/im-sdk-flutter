@@ -15,6 +15,7 @@ dependencies:
   # ====== 本地存储：Drift (SQLite ORM) 方案 ======
   drift: ^2.33.0
   drift_flutter: ^0.3.0
+  sqlite3_flutter_libs: ^0.6.0+eol
   # =============================================
   dio: ^5.4.0
   uuid: ^4.2.1

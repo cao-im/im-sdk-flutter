@@ -5,15 +5,23 @@ import 'drift/drift_storage.dart';
 
 class StorageFactory {
   static StorageInterface? _instance;
+  static int? _currentUserId;
 
-  static Future<StorageInterface> getInstance() async {
-    if (_instance != null) return _instance!;
+  static Future<StorageInterface> getInstance({int? userId}) async {
+    if (_instance != null && _currentUserId == userId) return _instance!;
 
-    print('[StorageFactory] 🗄️ 初始化 DriftStorage (全平台 SQLite 持久化)...');
+    if (_instance != null && _currentUserId != userId) {
+      print('[StorageFactory] 🔄 切换账号: $_currentUserId -> $userId, 重建实例');
+      await _instance!.close();
+      _instance = null;
+    }
+
+    print('[StorageFactory] 🗄️ 初始化 DriftStorage (全平台 SQLite 持久化)... userId=$userId');
 
     try {
       _instance = DriftStorage();
-      await _instance!.init();
+      await _instance!.init(userId: userId);
+      _currentUserId = userId;
 
       if (kIsWeb) {
         print('[StorageFactory] ✅ Web 平台: WasmDatabase (IndexedDB/OPFS)');
@@ -34,6 +42,7 @@ class StorageFactory {
   static void reset() {
     _instance?.close();
     _instance = null;
+    _currentUserId = null;
   }
 
   static String _platformLabel() {

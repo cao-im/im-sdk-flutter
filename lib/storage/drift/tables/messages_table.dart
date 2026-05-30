@@ -3,6 +3,8 @@ import 'package:drift/drift.dart';
 class Messages extends Table {
   IntColumn get id => integer().autoIncrement()();
 
+  IntColumn get mid => integer().nullable()();
+
   IntColumn get fromId => integer()();
 
   IntColumn get toId => integer()();
@@ -18,4 +20,14 @@ class Messages extends Table {
   IntColumn get timestamp => integer()();
 
   TextColumn get localPath => text().nullable()();
+
+  IntColumn get msgSeq => integer().withDefault(const Constant(0))();
+
+  IntColumn get replyMsgId => integer().nullable()();
+
+  TextColumn get atUserIds => text().withDefault(const Constant(''))();
+
+  TextColumn get extra => text().nullable()();
+
+  IntColumn get readStatus => integer().withDefault(const Constant(0))();
 }

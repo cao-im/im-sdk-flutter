@@ -14,7 +14,7 @@ class ApiStorage implements StorageInterface {
   String? _token;
 
   @override
-  Future<void> init() async {
+  Future<void> init({int? userId}) async {
     _dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 30),
