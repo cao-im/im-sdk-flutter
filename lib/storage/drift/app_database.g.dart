@@ -2094,6 +2094,16 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<int> userId = GeneratedColumn<int>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _createTimeMeta = const VerificationMeta(
     'createTime',
   );
@@ -2121,6 +2131,7 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     remark,
     status,
     source,
+    userId,
     createTime,
   ];
   @override
@@ -2224,6 +2235,12 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
       );
     }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    }
     if (data.containsKey('create_time')) {
       context.handle(
         _createTimeMeta,
@@ -2297,6 +2314,10 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         DriftSqlType.int,
         data['${effectivePrefix}source'],
       )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}user_id'],
+      )!,
       createTime: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}create_time'],
@@ -2325,6 +2346,7 @@ class Contact extends DataClass implements Insertable<Contact> {
   final String remark;
   final int status;
   final int source;
+  final int userId;
   final int createTime;
   const Contact({
     required this.id,
@@ -2341,6 +2363,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     required this.remark,
     required this.status,
     required this.source,
+    required this.userId,
     required this.createTime,
   });
   @override
@@ -2364,6 +2387,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     map['remark'] = Variable<String>(remark);
     map['status'] = Variable<int>(status);
     map['source'] = Variable<int>(source);
+    map['user_id'] = Variable<int>(userId);
     map['create_time'] = Variable<int>(createTime);
     return map;
   }
@@ -2388,6 +2412,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       remark: Value(remark),
       status: Value(status),
       source: Value(source),
+      userId: Value(userId),
       createTime: Value(createTime),
     );
   }
@@ -2412,6 +2437,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       remark: serializer.fromJson<String>(json['remark']),
       status: serializer.fromJson<int>(json['status']),
       source: serializer.fromJson<int>(json['source']),
+      userId: serializer.fromJson<int>(json['userId']),
       createTime: serializer.fromJson<int>(json['createTime']),
     );
   }
@@ -2433,6 +2459,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       'remark': serializer.toJson<String>(remark),
       'status': serializer.toJson<int>(status),
       'source': serializer.toJson<int>(source),
+      'userId': serializer.toJson<int>(userId),
       'createTime': serializer.toJson<int>(createTime),
     };
   }
@@ -2452,6 +2479,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     String? remark,
     int? status,
     int? source,
+    int? userId,
     int? createTime,
   }) => Contact(
     id: id ?? this.id,
@@ -2470,6 +2498,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     remark: remark ?? this.remark,
     status: status ?? this.status,
     source: source ?? this.source,
+    userId: userId ?? this.userId,
     createTime: createTime ?? this.createTime,
   );
   Contact copyWithCompanion(ContactsCompanion data) {
@@ -2492,6 +2521,7 @@ class Contact extends DataClass implements Insertable<Contact> {
       remark: data.remark.present ? data.remark.value : this.remark,
       status: data.status.present ? data.status.value : this.status,
       source: data.source.present ? data.source.value : this.source,
+      userId: data.userId.present ? data.userId.value : this.userId,
       createTime: data.createTime.present
           ? data.createTime.value
           : this.createTime,
@@ -2515,6 +2545,7 @@ class Contact extends DataClass implements Insertable<Contact> {
           ..write('remark: $remark, ')
           ..write('status: $status, ')
           ..write('source: $source, ')
+          ..write('userId: $userId, ')
           ..write('createTime: $createTime')
           ..write(')'))
         .toString();
@@ -2536,6 +2567,7 @@ class Contact extends DataClass implements Insertable<Contact> {
     remark,
     status,
     source,
+    userId,
     createTime,
   );
   @override
@@ -2556,6 +2588,7 @@ class Contact extends DataClass implements Insertable<Contact> {
           other.remark == this.remark &&
           other.status == this.status &&
           other.source == this.source &&
+          other.userId == this.userId &&
           other.createTime == this.createTime);
 }
 
@@ -2574,6 +2607,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
   final Value<String> remark;
   final Value<int> status;
   final Value<int> source;
+  final Value<int> userId;
   final Value<int> createTime;
   const ContactsCompanion({
     this.id = const Value.absent(),
@@ -2590,6 +2624,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.remark = const Value.absent(),
     this.status = const Value.absent(),
     this.source = const Value.absent(),
+    this.userId = const Value.absent(),
     this.createTime = const Value.absent(),
   });
   ContactsCompanion.insert({
@@ -2607,6 +2642,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.remark = const Value.absent(),
     this.status = const Value.absent(),
     this.source = const Value.absent(),
+    this.userId = const Value.absent(),
     required int createTime,
   }) : username = Value(username),
        createTime = Value(createTime);
@@ -2625,6 +2661,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Expression<String>? remark,
     Expression<int>? status,
     Expression<int>? source,
+    Expression<int>? userId,
     Expression<int>? createTime,
   }) {
     return RawValuesInsertable({
@@ -2642,6 +2679,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       if (remark != null) 'remark': remark,
       if (status != null) 'status': status,
       if (source != null) 'source': source,
+      if (userId != null) 'user_id': userId,
       if (createTime != null) 'create_time': createTime,
     });
   }
@@ -2661,6 +2699,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     Value<String>? remark,
     Value<int>? status,
     Value<int>? source,
+    Value<int>? userId,
     Value<int>? createTime,
   }) {
     return ContactsCompanion(
@@ -2678,6 +2717,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
       remark: remark ?? this.remark,
       status: status ?? this.status,
       source: source ?? this.source,
+      userId: userId ?? this.userId,
       createTime: createTime ?? this.createTime,
     );
   }
@@ -2727,6 +2767,9 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     if (source.present) {
       map['source'] = Variable<int>(source.value);
     }
+    if (userId.present) {
+      map['user_id'] = Variable<int>(userId.value);
+    }
     if (createTime.present) {
       map['create_time'] = Variable<int>(createTime.value);
     }
@@ -2750,6 +2793,7 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
           ..write('remark: $remark, ')
           ..write('status: $status, ')
           ..write('source: $source, ')
+          ..write('userId: $userId, ')
           ..write('createTime: $createTime')
           ..write(')'))
         .toString();
@@ -3655,6 +3699,7 @@ typedef $$ContactsTableCreateCompanionBuilder =
       Value<String> remark,
       Value<int> status,
       Value<int> source,
+      Value<int> userId,
       required int createTime,
     });
 typedef $$ContactsTableUpdateCompanionBuilder =
@@ -3673,6 +3718,7 @@ typedef $$ContactsTableUpdateCompanionBuilder =
       Value<String> remark,
       Value<int> status,
       Value<int> source,
+      Value<int> userId,
       Value<int> createTime,
     });
 
@@ -3752,6 +3798,11 @@ class $$ContactsTableFilterComposer
 
   ColumnFilters<int> get source => $composableBuilder(
     column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get userId => $composableBuilder(
+    column: $table.userId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3840,6 +3891,11 @@ class $$ContactsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createTime => $composableBuilder(
     column: $table.createTime,
     builder: (column) => ColumnOrderings(column),
@@ -3901,6 +3957,9 @@ class $$ContactsTableAnnotationComposer
   GeneratedColumn<int> get source =>
       $composableBuilder(column: $table.source, builder: (column) => column);
 
+  GeneratedColumn<int> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
   GeneratedColumn<int> get createTime => $composableBuilder(
     column: $table.createTime,
     builder: (column) => column,
@@ -3949,6 +4008,7 @@ class $$ContactsTableTableManager
                 Value<String> remark = const Value.absent(),
                 Value<int> status = const Value.absent(),
                 Value<int> source = const Value.absent(),
+                Value<int> userId = const Value.absent(),
                 Value<int> createTime = const Value.absent(),
               }) => ContactsCompanion(
                 id: id,
@@ -3965,6 +4025,7 @@ class $$ContactsTableTableManager
                 remark: remark,
                 status: status,
                 source: source,
+                userId: userId,
                 createTime: createTime,
               ),
           createCompanionCallback:
@@ -3983,6 +4044,7 @@ class $$ContactsTableTableManager
                 Value<String> remark = const Value.absent(),
                 Value<int> status = const Value.absent(),
                 Value<int> source = const Value.absent(),
+                Value<int> userId = const Value.absent(),
                 required int createTime,
               }) => ContactsCompanion.insert(
                 id: id,
@@ -3999,6 +4061,7 @@ class $$ContactsTableTableManager
                 remark: remark,
                 status: status,
                 source: source,
+                userId: userId,
                 createTime: createTime,
               ),
           withReferenceMapper: (p0) => p0

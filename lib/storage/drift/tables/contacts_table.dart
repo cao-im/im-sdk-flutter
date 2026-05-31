@@ -29,6 +29,8 @@ class Contacts extends Table {
 
   IntColumn get source => integer().withDefault(const Constant(0))();
 
+  IntColumn get userId => integer().withDefault(const Constant(0))();
+
   IntColumn get createTime => integer()();
 
   @override

@@ -15,7 +15,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(this.userId) : super(_openConnection(userId));
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -55,6 +55,14 @@ class AppDatabase extends _$AppDatabase {
       if (from < 6) {
         await m.addColumn(contacts, contacts.phone);
         await m.addColumn(contacts, contacts.email);
+      }
+      if (from < 7) {
+        try {
+          await m.addColumn(contacts, contacts.userId);
+          print('[AppDatabase] ✅ 迁移完成: 添加 contacts.userId 字段');
+        } catch (e) {
+          print('[AppDatabase] ⚠️ contacts.userId 字段已存在，跳过迁移: $e');
+        }
       }
     },
   );

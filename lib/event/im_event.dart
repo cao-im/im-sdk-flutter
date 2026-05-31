@@ -181,3 +181,14 @@ enum SyncMode {
   offline,
   fallback,
 }
+
+class ContactDataChangedEvent extends IMEvent {
+  final int? contactId;
+  final String changeType;
+
+  ContactDataChangedEvent({
+    this.contactId,
+    required this.changeType,
+    super.timestamp,
+  });
+}
