@@ -4,6 +4,7 @@ import '../core/connection_manager.dart';
 import '../core/connection_status.dart';
 import '../core/hybrid_message_sync.dart';
 import '../core/reconnect.dart';
+import '../core/token_manager.dart';
 import '../event/event_bus.dart';
 import '../event/event_listener.dart';
 import '../event/im_event.dart';
@@ -98,6 +99,7 @@ class IMClient {
 
   late ConnectionManager _connectionManager;
   late EventBus _eventBus;
+  late TokenManager _tokenManager;
   StorageInterface _storage = _FallbackStorage();
 
   late MessageServiceImpl _messageService;
@@ -166,6 +168,9 @@ class IMClient {
     this.serverUrl = uri.replace(port: resolvedPort).toString();
     print('📍[IMClient] 最终serverUrl: $this.serverUrl');
 
+    print('📍[IMClient] 创建并初始化 TokenManager...');
+    _tokenManager = TokenManager();
+    _tokenManager.init(serverUrl: this.serverUrl);
     print('📍[IMClient] 创建 ConnectionManager...');
     _connectionManager = ConnectionManager();
     print('📍[IMClient] 创建 EventBus...');
@@ -247,7 +252,7 @@ class IMClient {
     });
   }
 
-  Future<void> connect(String userToken, {int? userId}) async {
+  Future<void> connect(String userToken, {int? userId, String? refreshToken}) async {
     print('');
     print('📍[IMClient] ====== connect() 开始 ======');
     print('📍[IMClient] isInitialized: $_isInitialized');
@@ -257,7 +262,16 @@ class IMClient {
       throw StateError('IMClient未初始化，请先调用init()方法');
     }
 
-    token = userToken;
+    print('📍[IMClient] 设置Token到TokenManager...');
+    _tokenManager.setTokens(
+      accessToken: userToken,
+      refreshToken: refreshToken,
+    );
+
+    print('📍[IMClient] 连接前检查Token有效性...');
+    await _tokenManager.ensureValidTokenBeforeConnect();
+
+    token = _tokenManager.accessToken ?? userToken;
     if (userId != null && userId > 0) {
       currentUserId = userId;
     }
@@ -935,6 +949,29 @@ class IMClient {
     );
 
     _log.i('✅ ReadReceiptManager 已初始化（支持断网缓存+重连补发）');
+  }
+
+  // ==================== Token管理API ====================
+
+  void setTokens({
+    required String accessToken,
+    String? refreshToken,
+  }) {
+    _tokenManager.setTokens(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
+    token = _tokenManager.accessToken ?? accessToken;
+  }
+
+  Future<bool> refreshToken() async {
+    return _tokenManager.refresh();
+  }
+
+  bool get isTokenExpiringSoon => _tokenManager.isTokenExpiringSoon();
+
+  Map<String, dynamic> getTokenDebugInfo() {
+    return _tokenManager.getDebugInfo();
   }
 
   // ==================== 公开API ====================
