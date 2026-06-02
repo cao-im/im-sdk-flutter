@@ -219,13 +219,17 @@ class DriftStorage implements StorageInterface {
     final query = _db.select(_db.conversations);
 
     if (userId != 0) {
-      query.where((tbl) => tbl.userId.equals(userId));
+      query.where((tbl) =>
+          tbl.userId.equals(userId) &
+          tbl.isDeleted.equals(0));
+    } else {
+      query.where((tbl) => tbl.isDeleted.equals(0));
     }
 
     query.orderBy([(t) => OrderingTerm.desc(t.updateTime)]);
 
     final rows = await query.get();
-    print('[DriftStorage] ✅ getConversations 完成: 找到 ${rows.length} 个会话');
+    print('[DriftStorage] ✅ getConversations 完成: 找到 ${rows.length} 个会话（已排除已删除记录）');
 
     return rows.map((row) => _toConversation(row)).toList();
   }
@@ -257,9 +261,10 @@ class DriftStorage implements StorageInterface {
 
   @override
   Future<void> deleteConversation(int conversationId) async {
-    await (_db.delete(_db.conversations)..where((tbl) => tbl.id.equals(conversationId))).go();
+    await (_db.update(_db.conversations)..where((tbl) => tbl.id.equals(conversationId)))
+        .write(const ConversationsCompanion(isDeleted: Value(1)));
 
-    print('[DriftStorage] 🗑️ 会话已删除: id=$conversationId');
+    print('[DriftStorage] 🗑️ 会话已标记为已删除（软删除）: id=$conversationId');
   }
 
   @override
