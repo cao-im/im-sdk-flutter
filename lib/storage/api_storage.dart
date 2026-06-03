@@ -161,35 +161,29 @@ class ApiStorage implements StorageInterface {
 
   @override
   Future<int> insertConversation(model_conv.Conversation conversation) async {
-    final result = await _request('POST', '/conversations', data: conversation.toJson());
-    return result['data']?['id'] ?? result['id'] ?? conversation.id ?? 0;
+    // 会话由客户端本地维护，不再同步到服务端
+    return conversation.id ?? 0;
   }
 
   @override
   Future<List<model_conv.Conversation>> getConversations(int userId) async {
-    final result = await _request('GET', '/users/$userId/conversations');
-    final List<dynamic> conversationsJson = result['data'] ?? result['conversations'] ?? [];
-    
-    return conversationsJson.map((json) => model_conv.Conversation.fromJson(json)).toList();
+    // 会话由客户端本地维护，不再从服务端获取
+    return [];
   }
 
   @override
   Future<void> updateConversation(model_conv.Conversation conversation) async {
-    if (conversation.id == null) return;
-    
-    await _request('PUT', '/conversations/${conversation.id}', data: conversation.toJson());
+    // 会话由客户端本地维护，不再同步到服务端
   }
 
   @override
   Future<void> updateUnreadCount(int conversationId, int count) async {
-    await _request('PUT', '/conversations/$conversationId/unread-count', data: {
-      'unreadCount': count,
-    });
+    // 未读数由客户端本地维护，不再同步到服务端
   }
 
   @override
   Future<void> deleteConversation(int conversationId) async {
-    await _request('DELETE', '/conversations/$conversationId');
+    // 会话删除仅在客户端本地执行，不再通知服务端
   }
 
   @override
