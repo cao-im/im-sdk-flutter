@@ -203,7 +203,7 @@ class DriftStorage implements StorageInterface {
 
     try {
       final id = await _db.into(_db.conversations).insert(convCompanion);
-      print('[DriftStorage] ✅ insertConversation 成功: 新会话ID=$id');
+      print('[DriftStorage] ✅ insertConversation 成功: 会话ID=$id');
       return id;
     } catch (e, stackTrace) {
       print('[DriftStorage] ❌ insertConversation 失败: $e');

@@ -96,6 +96,8 @@ class ApiStorage implements StorageInterface {
     final result = await _request('GET', '/messages', data: params);
     final List<dynamic> messagesJson = result['data'] ?? result['messages'] ?? [];
     
+    print('📥 [ApiStorage.getMessages] 离线消息原始数据: $messagesJson');
+    
     return messagesJson.map((json) => model.Message.fromJson(json)).toList();
   }
 

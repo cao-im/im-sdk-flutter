@@ -1,3 +1,5 @@
+import 'sender_info.dart';
+
 enum MessageType {
   text(0),
   image(1),
@@ -44,6 +46,8 @@ class Message {
   MessageStatus status;
   final int timestamp;
   final String? localPath;
+  final SenderInfo? senderInfo;
+  final GroupInfo? groupInfo;
 
   Message({
     this.id,
@@ -55,9 +59,12 @@ class Message {
     this.status = MessageStatus.sending,
     int? timestamp,
     this.localPath,
+    this.senderInfo,
+    this.groupInfo,
   }) : timestamp = timestamp ?? DateTime.now().millisecondsSinceEpoch;
 
   factory Message.fromJson(Map<String, dynamic> json) {
+    print('📥 [Message.fromJson] 原始JSON: $json');
     return Message(
       id: json['id'],
       fromId: json['fromId'] ?? 0,
@@ -68,11 +75,17 @@ class Message {
       status: MessageStatus.fromValue(json['status'] ?? 0),
       timestamp: json['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
       localPath: json['localPath'],
+      senderInfo: json['senderInfo'] != null
+          ? SenderInfo.fromJson(json['senderInfo'])
+          : null,
+      groupInfo: json['groupInfo'] != null
+          ? GroupInfo.fromJson(json['groupInfo'])
+          : null,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    final json = {
       'id': id,
       'fromId': fromId,
       'toId': toId,
@@ -82,16 +95,22 @@ class Message {
       'status': status.value,
       'timestamp': timestamp,
       'localPath': localPath,
+      if (senderInfo != null) 'senderInfo': senderInfo!.toJson(),
+      if (groupInfo != null) 'groupInfo': groupInfo!.toJson(),
     };
+    print('📦 [Message.toJson] $json');
+    return json;
   }
 
   Map<String, dynamic> toProtocolJson() {
-    return {
+    final json = {
       'type': groupId != null ? 'group' : 'private',
       'toId': groupId ?? toId,
       'content': content,
       'msgType': msgType.value,
     };
+    print('📤 [Message.toProtocolJson] $json');
+    return json;
   }
 
   Message copyWith({
@@ -104,6 +123,8 @@ class Message {
     MessageStatus? status,
     int? timestamp,
     String? localPath,
+    SenderInfo? senderInfo,
+    GroupInfo? groupInfo,
   }) {
     return Message(
       id: id ?? this.id,
@@ -115,6 +136,8 @@ class Message {
       status: status ?? this.status,
       timestamp: timestamp ?? this.timestamp,
       localPath: localPath ?? this.localPath,
+      senderInfo: senderInfo ?? this.senderInfo,
+      groupInfo: groupInfo ?? this.groupInfo,
     );
   }
 
@@ -172,5 +195,25 @@ class Message {
       case MessageStatus.recalled:
         return '已撤回';
     }
+  }
+
+  String get senderDisplayName {
+    if (senderInfo != null) {
+      if (senderInfo!.groupNickname != null && senderInfo!.groupNickname!.isNotEmpty) {
+        return senderInfo!.groupNickname!;
+      }
+      if (senderInfo!.nickname.isNotEmpty) {
+        return senderInfo!.nickname;
+      }
+    }
+    return '用户$fromId';
+  }
+
+  String? get senderDisplayAvatar {
+    return senderInfo?.avatar;
+  }
+
+  String? get groupDisplayName {
+    return groupInfo?.groupName;
   }
 }

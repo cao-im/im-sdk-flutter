@@ -61,7 +61,7 @@ class Conversation {
   }
 
   String get conversationId =>
-      '${targetType.value}_$targetId';
+      '$targetId';
 
   bool get isPrivate => targetType == TargetType.private;
   bool get isGroup => targetType == TargetType.group;

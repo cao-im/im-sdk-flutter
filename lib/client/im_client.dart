@@ -671,9 +671,11 @@ class IMClient {
 
   void _handleIncomingMessage(Map<String, dynamic> data) {
     final type = data['type'];
+    _log.i('📡 [IMClient._handleIncomingMessage] 收到服务端消息, type=$type, data=$data');
 
     if (type == 'message' || type == 'private_message') {
       final messageData = data['data'] as Map<String, dynamic>? ?? data;
+      _log.i('📡 [IMClient] 解析消息数据: $messageData');
       final message = Message.fromJson(messageData);
 
       // ✅ 先保存到本地存储（确保数据持久化）

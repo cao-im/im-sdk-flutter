@@ -59,9 +59,4 @@ class Conversations extends Table {
 
   /// 草稿内容(输入框未发送的内容)
   TextColumn get draftContent => text().nullable()();
-
-  @override
-  List<Set<Column<Object>>> get uniqueKeys => [
-    {userId, targetType, targetId},
-  ];
 }

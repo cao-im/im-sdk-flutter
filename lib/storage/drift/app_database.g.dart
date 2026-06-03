@@ -378,20 +378,49 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
 }
 
 class Message extends DataClass implements Insertable<Message> {
+  /// 消息记录主键(自增)
   final int id;
+
+  /// 消息全局唯一ID(雪花算法生成，0表示待分配)
   final int mid;
+
+  /// 发送者用户ID
   final int fromId;
+
+  /// 接收者用户ID(私聊时使用)
   final int toId;
+
+  /// 群组ID(群聊时使用，与to_id互斥)
   final int? groupId;
+
+  /// 消息内容(文本消息为纯文本，其他类型可能为JSON或URL)
   final String content;
+
+  /// 消息类型: 0-文本, 1-图片, 2-文件, 3-语音, 4-视频, 5-位置, 6-名片, 7-系统消息, 8-合并消息, 9-表情包
   final int msgType;
+
+  /// 消息状态: 0-发送中, 1-发送成功, 2-发送失败
   final int status;
+
+  /// 发送时间(时间戳毫秒)
   final int timestamp;
+
+  /// 本地存储路径(图片/视频/文件等富媒体消息的本地路径)
   final String? localPath;
+
+  /// 消息序号(用于排序和去重，保证全局有序)
   final int msgSeq;
+
+  /// 引用/回复的消息ID(实现消息引用功能)
   final int? replyMsgId;
+
+  /// @的用户ID列表(逗号分隔，如"1001,1002")
   final String atUserIds;
+
+  /// 扩展信息(JSON格式，存储消息特有属性，如图片尺寸、语音时长等)
   final String? extra;
+
+  /// 阅读状态: 0-未读, 1-已读
   final int readStatus;
   const Message({
     required this.id,
@@ -1233,10 +1262,6 @@ class $ConversationsTable extends Conversations
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  List<Set<GeneratedColumn>> get uniqueKeys => [
-    {userId, targetType, targetId},
-  ];
-  @override
   Conversation map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Conversation(
@@ -1326,24 +1351,61 @@ class $ConversationsTable extends Conversations
 }
 
 class Conversation extends DataClass implements Insertable<Conversation> {
+  /// 会话记录主键(自增)
   final int id;
+
+  /// 用户ID(会话所属者)
   final int userId;
+
+  /// 目标类型: 1-私聊, 2-群聊
   final int targetType;
+
+  /// 目标ID(对方用户ID或群组ID)
   final int targetId;
+
+  /// 未读消息数
   final int unreadCount;
+
+  /// 更新时间(时间戳毫秒，用于会话列表排序)
   final int updateTime;
+
+  /// 最后一条消息内容(冗余字段，提升列表查询性能)
   final String? lastMessageContent;
+
+  /// 最后一条消息类型(0-文本, 1-图片, 2-文件...)
   final int? lastMessageType;
+
+  /// 最后一条消息状态(0-发送中, 1-发送成功, 2-发送失败)
   final int? lastMessageStatus;
+
+  /// 最后一条消息发送时间(时间戳毫秒)
   final int? lastMessageTimestamp;
+
+  /// 最后一条消息发送者ID
   final int? lastMessageFromId;
+
+  /// 最后一条消息接收者ID(私聊时使用)
   final int? lastMessageToId;
+
+  /// 最后一条消息所属群组ID(群聊时使用)
   final int? lastMessageGroupId;
+
+  /// 最后一条消息本地存储路径(图片/视频/文件等富媒体消息)
   final String? lastMessageLocalPath;
+
+  /// 最后一条消息ID(关联messages表.id)
   final int? lastMsgId;
+
+  /// 是否置顶: 0-否, 1-是
   final int isTop;
+
+  /// 是否免打扰: 0-否, 1-是(不推送通知)
   final int isMute;
+
+  /// 是否删除: 0-否, 1-是(仅删除会话，不删除消息)
   final int isDeleted;
+
+  /// 草稿内容(输入框未发送的内容)
   final String? draftContent;
   const Conversation({
     required this.id,
@@ -1985,8 +2047,7 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _signatureMeta = const VerificationMeta(
     'signature',
@@ -2018,8 +2079,7 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _phoneMeta = const VerificationMeta('phone');
   @override
@@ -2028,8 +2088,7 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _emailMeta = const VerificationMeta('email');
   @override
@@ -2038,8 +2097,7 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _onlineStatusMeta = const VerificationMeta(
     'onlineStatus',
@@ -2071,8 +2129,7 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(''),
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
@@ -2168,6 +2225,8 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         _avatarMeta,
         avatar.isAcceptableOrUnknown(data['avatar']!, _avatarMeta),
       );
+    } else if (isInserting) {
+      context.missing(_avatarMeta);
     }
     if (data.containsKey('signature')) {
       context.handle(
@@ -2186,18 +2245,24 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         _locationMeta,
         location.isAcceptableOrUnknown(data['location']!, _locationMeta),
       );
+    } else if (isInserting) {
+      context.missing(_locationMeta);
     }
     if (data.containsKey('phone')) {
       context.handle(
         _phoneMeta,
         phone.isAcceptableOrUnknown(data['phone']!, _phoneMeta),
       );
+    } else if (isInserting) {
+      context.missing(_phoneMeta);
     }
     if (data.containsKey('email')) {
       context.handle(
         _emailMeta,
         email.isAcceptableOrUnknown(data['email']!, _emailMeta),
       );
+    } else if (isInserting) {
+      context.missing(_emailMeta);
     }
     if (data.containsKey('online_status')) {
       context.handle(
@@ -2222,6 +2287,8 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
         _remarkMeta,
         remark.isAcceptableOrUnknown(data['remark']!, _remarkMeta),
       );
+    } else if (isInserting) {
+      context.missing(_remarkMeta);
     }
     if (data.containsKey('status')) {
       context.handle(
@@ -2332,21 +2399,52 @@ class $ContactsTable extends Contacts with TableInfo<$ContactsTable, Contact> {
 }
 
 class Contact extends DataClass implements Insertable<Contact> {
+  /// 本地记录ID（自增，无业务含义，不存储服务端返回的任何ID）
   final int id;
+
+  /// IM用户名(登录账号)
   final String username;
+
+  /// 昵称(显示名称，优先级低于remark)
   final String nickname;
+
+  /// 头像URL
   final String avatar;
+
+  /// 个性签名
   final String? signature;
+
+  /// 性别: 0-未知, 1-男, 2-女
   final int gender;
+
+  /// 所在地
   final String location;
+
+  /// 手机号
   final String phone;
+
+  /// 邮箱
   final String email;
+
+  /// 在线状态: 0-离线, 1-在线, 2-忙碌, 3-隐身
   final int onlineStatus;
+
+  /// 最后在线时间(时间戳毫秒)
   final int? lastOnlineTime;
+
+  /// 备注名(可自定义显示名称，优先显示)
   final String remark;
+
+  /// 好友状态: 0-正常, 1-已删除
   final int status;
+
+  /// 添加来源: 0-搜索, 1-群聊, 2-二维码, 3-名片分享, 4-通讯录
   final int source;
+
+  /// 用户ID（对应服务端 contactUserId / im_user.id，真正的聊天对象ID）
   final int userId;
+
+  /// 建立好友关系的时间(时间戳毫秒)
   final int createTime;
   const Contact({
     required this.id,
@@ -2631,20 +2729,25 @@ class ContactsCompanion extends UpdateCompanion<Contact> {
     this.id = const Value.absent(),
     required String username,
     this.nickname = const Value.absent(),
-    this.avatar = const Value.absent(),
+    required String avatar,
     this.signature = const Value.absent(),
     this.gender = const Value.absent(),
-    this.location = const Value.absent(),
-    this.phone = const Value.absent(),
-    this.email = const Value.absent(),
+    required String location,
+    required String phone,
+    required String email,
     this.onlineStatus = const Value.absent(),
     this.lastOnlineTime = const Value.absent(),
-    this.remark = const Value.absent(),
+    required String remark,
     this.status = const Value.absent(),
     this.source = const Value.absent(),
     this.userId = const Value.absent(),
     required int createTime,
   }) : username = Value(username),
+       avatar = Value(avatar),
+       location = Value(location),
+       phone = Value(phone),
+       email = Value(email),
+       remark = Value(remark),
        createTime = Value(createTime);
   static Insertable<Contact> custom({
     Expression<int>? id,
@@ -3688,15 +3791,15 @@ typedef $$ContactsTableCreateCompanionBuilder =
       Value<int> id,
       required String username,
       Value<String> nickname,
-      Value<String> avatar,
+      required String avatar,
       Value<String?> signature,
       Value<int> gender,
-      Value<String> location,
-      Value<String> phone,
-      Value<String> email,
+      required String location,
+      required String phone,
+      required String email,
       Value<int> onlineStatus,
       Value<int?> lastOnlineTime,
-      Value<String> remark,
+      required String remark,
       Value<int> status,
       Value<int> source,
       Value<int> userId,
@@ -4033,15 +4136,15 @@ class $$ContactsTableTableManager
                 Value<int> id = const Value.absent(),
                 required String username,
                 Value<String> nickname = const Value.absent(),
-                Value<String> avatar = const Value.absent(),
+                required String avatar,
                 Value<String?> signature = const Value.absent(),
                 Value<int> gender = const Value.absent(),
-                Value<String> location = const Value.absent(),
-                Value<String> phone = const Value.absent(),
-                Value<String> email = const Value.absent(),
+                required String location,
+                required String phone,
+                required String email,
                 Value<int> onlineStatus = const Value.absent(),
                 Value<int?> lastOnlineTime = const Value.absent(),
-                Value<String> remark = const Value.absent(),
+                required String remark,
                 Value<int> status = const Value.absent(),
                 Value<int> source = const Value.absent(),
                 Value<int> userId = const Value.absent(),
