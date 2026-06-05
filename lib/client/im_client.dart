@@ -318,6 +318,11 @@ class IMClient {
           onReconnect: () async {
             try {
               print('🔄[IMClient] ReconnectManager 执行重连回调...');
+              print('🔄[IMClient] 重连前 token 长度: ${token.length}');
+              // 🔑 重连前先检查并刷新 Token（修复：避免使用已过期的旧 Token）
+              await _tokenManager.ensureValidTokenBeforeConnect();
+              token = _tokenManager.accessToken ?? token;
+              print('🔄[IMClient] 刷新后 token 长度: ${token.length} (若长度变化说明Token已刷新)');
               await _connectionManager.connect(serverUrl, token);
               return true;
             } catch (e) {
@@ -417,6 +422,9 @@ class IMClient {
       _reconnectManager?.reset(logReset: false);
 
       print('🔄[IMClient] 执行连接...');
+      // 🔑 手动重连前也先检查并刷新 Token
+      await _tokenManager.ensureValidTokenBeforeConnect();
+      token = _tokenManager.accessToken ?? token;
       await _connectionManager.connect(serverUrl, token);
 
       print('✅[IMClient] 手动重连成功');
