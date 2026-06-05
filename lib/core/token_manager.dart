@@ -1,16 +1,35 @@
 import 'dart:convert';
-import 'dart:io';
-
-import 'package:dio/dio.dart';
-
+import 'sdk_http_client.dart';
 import '../utils/logger.dart';
 
+/// Token 管理器
+///
+/// 负责 SDK 的 Token 生命周期管理，包括：
+/// - 存储 AccessToken 和 RefreshToken
+/// - 自动检测 Token 过期状态
+/// - 使用 RefreshToken 刷新 AccessToken
+/// - JWT 过期时间解析和日志输出
+///
+/// 使用方式：
+/// ```dart
+/// // 初始化（在 IMClient.init 中调用）
+/// TokenManager().init(serverUrl: serverUrl);
+///
+/// // 设置 Token（在 IMClient.connect 中调用）
+/// TokenManager().setTokens(accessToken: 'xxx', refreshToken: 'yyy');
+///
+/// // 刷新 Token（SDK 内部自动调用）
+/// await TokenManager().refresh();
+/// ```
 class TokenManager {
   static final TokenManager _instance = TokenManager._internal();
   factory TokenManager() => _instance;
   TokenManager._internal();
 
   final Logger _log = AppLogger.instance;
+
+  /// HTTP 客户端，用于与服务端通信（Token 刷新等）
+  final SdkHttpClient _httpClient = SdkHttpClient();
 
   String? _accessToken;
   String? _refreshToken;
@@ -21,11 +40,19 @@ class TokenManager {
   String? get accessToken => _accessToken;
   String? get refreshToken => _refreshToken;
 
+  /// 初始化 TokenManager
+  ///
+  /// [serverUrl] 服务端地址，用于构建 HTTP 请求的 baseUrl
   void init({required String serverUrl}) {
     _serverUrl = serverUrl;
+    _httpClient.init(serverUrl: serverUrl);
     _log.i('[TokenManager] 初始化, serverUrl: $serverUrl');
   }
 
+  /// 设置 Token 对
+  ///
+  /// [accessToken] 访问令牌，用于 API 认证
+  /// [refreshToken] 刷新令牌，用于获取新的 AccessToken
   void setTokens({
     required String accessToken,
     String? refreshToken,
@@ -44,17 +71,78 @@ class TokenManager {
     }
   }
 
+  /// 清除所有 Token
   void clear() {
     _accessToken = null;
     _refreshToken = null;
     _log.i('[TokenManager] Token已清除');
   }
 
+  /// 是否有有效的 AccessToken
   bool get hasValidToken => _accessToken != null && _accessToken!.isNotEmpty;
 
+  /// 是否有 RefreshToken
   bool get hasRefreshToken => _refreshToken != null && _refreshToken!.isNotEmpty;
 
-  /// 解析JWT的过期信息并返回描述字符串
+  // ==================== Token 刷新 ====================
+
+  /// 刷新 Token
+  ///
+  /// 使用 RefreshToken 向服务端请求新的 Token 对。
+  /// 内部有防重复刷新机制（_isRefreshing 标志位）。
+  ///
+  /// 返回 true 表示刷新成功，false 表示失败
+  Future<bool> refresh() async {
+    if (_isRefreshing) {
+      _log.w('[TokenManager] 正在刷新中，跳过重复请求');
+      return false;
+    }
+
+    if (_refreshToken == null || _refreshToken!.isEmpty) {
+      _log.e('[TokenManager] ❌ 无法刷新: 无RefreshToken');
+      return false;
+    }
+
+    // 打印 RefreshToken 的过期详情，方便排查
+    _log.i('[TokenManager] 🔄 开始刷新Token...');
+    _logTokenExpiry('RefreshToken(用于刷新)', _refreshToken!);
+
+    _isRefreshing = true;
+
+    try {
+      // 委托给 SdkHttpClient 执行 HTTP 请求
+      final result = await _httpClient.refreshToken(_refreshToken!);
+
+      if (result['success'] == true) {
+        final newAccessToken = result['accessToken'] as String?;
+        final newRefreshToken = result['refreshToken'] as String?;
+
+        if (newAccessToken != null && newAccessToken.isNotEmpty) {
+          _accessToken = newAccessToken;
+
+          if (newRefreshToken != null && newRefreshToken.isNotEmpty) {
+            _refreshToken = newRefreshToken;
+          }
+
+          _log.i('[TokenManager] ✅ Token刷新成功');
+          _logTokenExpiry('新AccessToken', _accessToken!);
+          if (newRefreshToken != null) {
+            _logTokenExpiry('新RefreshToken', newRefreshToken);
+          }
+          return true;
+        }
+      }
+
+      _log.e('[TokenManager] ❌ Token刷新失败');
+      return false;
+    } finally {
+      _isRefreshing = false;
+    }
+  }
+
+  // ==================== Token 过期检查 ====================
+
+  /// 解析 JWT 的过期信息并返回描述字符串
   String _parseTokenExpiry(String tokenLabel, String token) {
     try {
       final parts = token.split('.');
@@ -89,90 +177,15 @@ class TokenManager {
     }
   }
 
-  /// 打印Token过期信息到日志
+  /// 打印 Token 过期信息到日志
   void _logTokenExpiry(String label, String token) {
     final info = _parseTokenExpiry(label, token);
     _log.i('[TokenManager] 🔍 $label 过期状态: $info');
   }
 
-  Future<bool> refresh() async {
-    if (_isRefreshing) {
-      _log.w('[TokenManager] 正在刷新中，跳过重复请求');
-      return false;
-    }
-
-    if (_refreshToken == null || _refreshToken!.isEmpty) {
-      _log.e('[TokenManager] ❌ 无法刷新: 无RefreshToken');
-      return false;
-    }
-
-    // 🔑 打印RefreshToken的过期详情，方便排查
-    _log.i('[TokenManager] 🔄 开始刷新Token...');
-    _logTokenExpiry('RefreshToken(用于刷新)', _refreshToken!);
-
-    _isRefreshing = true;
-
-    try {
-      final uri = Uri.parse(_serverUrl);
-      // 🔑 将 ws/wss 协议转换为 http/https（_serverUrl 是 WebSocket 地址，HTTP 请求需要转换协议）
-      final httpScheme = uri.scheme == 'wss' ? 'https' : 'http';
-      final baseUrl = '$httpScheme://${uri.host}:${uri.port}';
-
-      _log.d('[TokenManager] 请求地址: $baseUrl/api/user/refresh-token (原始协议: ${uri.scheme} → 转换为: $httpScheme)');
-
-      final dio = Dio(BaseOptions(
-        baseUrl: baseUrl,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
-        headers: {'Content-Type': 'application/json'},
-      ));
-
-      final response = await dio.post(
-        '/api/user/refresh-token',
-        data: {'refreshToken': _refreshToken},
-      );
-
-      // Dio 已自动将 JSON 响应解析为 Map，无需再 jsonDecode
-      final data = response.data is Map<String, dynamic>
-          ? response.data as Map<String, dynamic>
-          : jsonDecode(response.data is String ? response.data : response.data.toString());
-
-      if (data['code'] == 200 && data['data'] != null) {
-        final newAccessToken = data['data']['token'] as String?;
-        final newRefreshToken = data['data']['refreshToken'] as String?;
-
-        if (newAccessToken != null && newAccessToken.isNotEmpty) {
-          _accessToken = newAccessToken;
-
-          if (newRefreshToken != null && newRefreshToken.isNotEmpty) {
-            _refreshToken = newRefreshToken;
-          }
-
-          _log.i('[TokenManager] ✅ Token刷新成功');
-          _logTokenExpiry('新AccessToken', _accessToken!);
-          if (newRefreshToken != null) {
-            _logTokenExpiry('新RefreshToken', newRefreshToken);
-          }
-          return true;
-        }
-      }
-
-      _log.e('[TokenManager] ❌ Token刷新失败: code=${data['code']}, message=${data['message']}');
-      return false;
-    } on DioException catch (e) {
-      _log.e('[TokenManager] ❌ Token刷新网络异常: type=${e.type}, message=${e.message}, response=${e.response?.statusCode}');
-      if (e.response?.data != null) {
-        _log.e('[TokenManager] ❌ 服务端响应: ${e.response?.data}');
-      }
-      return false;
-    } catch (e) {
-      _log.e('[TokenManager] ❌ Token刷新异常: $e');
-      return false;
-    } finally {
-      _isRefreshing = false;
-    }
-  }
-
+  /// 检查 Token 是否即将过期
+  ///
+  /// [thresholdHours] 过期阈值（默认24小时内算即将过期）
   bool isTokenExpiringSoon({int thresholdHours = 24}) {
     if (_accessToken == null || _accessToken!.isEmpty) {
       return true;
@@ -211,6 +224,7 @@ class TokenManager {
     }
   }
 
+  /// 获取有效的 Token（如果即将过期则自动刷新）
   Future<String> getValidToken() async {
     if (!hasValidToken) {
       throw StateError('无可用Token');
@@ -228,13 +242,16 @@ class TokenManager {
     return _accessToken!;
   }
 
+  /// 连接前确保 Token 有效
+  ///
+  /// 如果 AccessToken 即将过期（<1小时），自动刷新
   Future<void> ensureValidTokenBeforeConnect() async {
     if (!hasValidToken) {
       _log.e('[TokenManager] ❌ 无法连接: 无可用AccessToken');
       throw StateError('无法连接: 无可用Token');
     }
 
-    // 打印当前AccessToken状态
+    // 打印当前 AccessToken 状态
     _logTokenExpiry('连接前检查 AccessToken', _accessToken!);
     if (_refreshToken != null) {
       _logTokenExpiry('连接前检查 RefreshToken', _refreshToken!);
@@ -254,6 +271,7 @@ class TokenManager {
     }
   }
 
+  /// 获取调试信息（用于排查问题）
   Map<String, dynamic> getDebugInfo() {
     return {
       'hasAccessToken': hasValidToken,
@@ -263,8 +281,10 @@ class TokenManager {
       'isRefreshing': _isRefreshing,
       'serverUrl': _serverUrl,
       'isExpiringSoon': isTokenExpiringSoon(),
-      'accessTokenExpiry': _accessToken != null ? _parseTokenExpiry('AccessToken', _accessToken!) : 'null',
-      'refreshTokenExpiry': _refreshToken != null ? _parseTokenExpiry('RefreshToken', _refreshToken!) : 'null',
+      'accessTokenExpiry':
+          _accessToken != null ? _parseTokenExpiry('AccessToken', _accessToken!) : 'null',
+      'refreshTokenExpiry':
+          _refreshToken != null ? _parseTokenExpiry('RefreshToken', _refreshToken!) : 'null',
     };
   }
 }

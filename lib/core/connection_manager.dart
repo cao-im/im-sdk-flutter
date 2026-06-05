@@ -82,16 +82,10 @@ class ConnectionManager {
         final portConfigurable = data['portConfigurable'] as bool? ?? false;
         final note = data['note'] as String?;
 
-        _log.i('服务端端口信息获取成功');
-        _log.i('- 服务端口: $serverPort');
-        _log.i('- 配置端口: $configuredPort');
-        _log.i('- 端口匹配: ${isMatched ? "是" : "否"}');
-        _log.i('- 端口可配置: ${portConfigurable ? "是" : "否"}');
+        _log.i('服务端端口信息: port=$serverPort, configured=$configuredPort, matched=$isMatched, configurable=$portConfigurable');
 
         if (buildSignature != null && buildSignature != _buildSignature) {
-          _log.w('构建签名不匹配!');
-          _log.w('SDK期望: $_buildSignature');
-          _log.w('服务端实际: $buildSignature');
+          _log.w('构建签名不匹配! SDK期望=$_buildSignature, 服务端实际=$buildSignature');
         }
 
         if (note != null) {
@@ -99,9 +93,7 @@ class ConnectionManager {
         }
 
         if (!isMatched) {
-          _log.w('服务端端口与请求端口不完全匹配');
-          _log.w('- 请求端口可能与服务端配置端口不同');
-          _log.w('- 这通常不影响连接（端口可自由配置）');
+          _log.w('端口不匹配(通常不影响连接): 请求端口可能与服务端配置端口不同，端口可自由配置');
         }
 
         _log.i('服务端端口验证通过，可以安全连接');
@@ -112,8 +104,7 @@ class ConnectionManager {
 
       httpClient.close();
     } on SocketException catch (e) {
-      _log.w('无法连接到服务端进行端口验证: $e');
-      _log.w('将尝试直接连接（可能不安全）');
+      _log.w('无法连接到服务端进行端口验证(非致命): $e, 将尝试直接连接');
     } catch (e) {
       rethrow;
     }
@@ -260,24 +251,14 @@ class ConnectionManager {
         final duration = _connectedTime != null
             ? DateTime.now().difference(_connectedTime!).inMilliseconds
             : 0;
-        _log.w('🔌 WebSocket 连接已关闭 (onDone 触发)');
-        _log.w('⏱️ 连接持续时间: ${duration}ms');
-        _log.w('🔍 可能原因:');
-        _log.w('   1. 服务端主动关闭连接');
-        _log.w('   2. Token 认证失败或过期');
-        _log.w('   3. 服务端配置问题（最大连接数、IP白名单等）');
-        _log.w('   4. 网络中断');
-        _log.w('📎 建议: 检查服务端日志获取详细关闭原因');
+        _log.w('🔌 WebSocket 连接已关闭 (onDone), 持续时间: ${duration}ms | 可能原因: 1.服务端主动关闭 2.Token过期 3.服务端配置问题 4.网络中断 | 建议: 检查服务端日志');
         _handleDisconnection();
       },
       onError: (error) {
         final duration = _connectedTime != null
             ? DateTime.now().difference(_connectedTime!).inMilliseconds
             : 0;
-        _log.e('❌ WebSocket 连接错误 (onError 触发)', error: error);
-        _log.e('⏱️ 连接持续时间: ${duration}ms');
-        _log.e('❌ 错误详情: ${error.toString()}');
-        _log.e('🔍 错误类型: ${error.runtimeType}');
+        _log.e('❌ WebSocket 连接错误 (onError), 持续时间: ${duration}ms, 详情: ${error.toString()}, 类型: ${error.runtimeType}', error: error);
         _handleDisconnection();
       },
     );

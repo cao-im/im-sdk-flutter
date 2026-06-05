@@ -83,10 +83,7 @@ class GroupServiceImpl implements GroupService {
   void _validateOwnerPermission(Group group, int currentUserId) {
     if (group.ownerId != currentUserId) {
       throw IMException.permission(
-        '权限不足：只有群主才能执行此操作\n'
-        '当前用户ID: $currentUserId\n'
-        '群主ID: ${group.ownerId}\n'
-        '群组名称: ${group.name}',
+        '权限不足：只有群主才能执行此操作 | 当前用户ID: $currentUserId, 群主ID: ${group.ownerId}, 群组名称: ${group.name}',
       );
     }
   }
@@ -95,10 +92,7 @@ class GroupServiceImpl implements GroupService {
     final memberIds = group.memberIds ?? [];
     if (!memberIds.contains(userId)) {
       throw IMException.params(
-        '用户不在群组中，无法执行操作\n'
-        '用户ID: $userId\n'
-        '群组ID: ${group.id}\n'
-        '群组名称: ${group.name}',
+        '用户不在群组中，无法执行操作 | 用户ID: $userId, 群组ID: ${group.id}, 群组名称: ${group.name}',
       );
     }
   }
@@ -292,9 +286,7 @@ class GroupServiceImpl implements GroupService {
 
       if (errorCode == 403 || errorMsg.contains('权限')) {
         throw IMException.permission(
-          '权限不足：只有群主才能解散群组\n'
-          '群组名称: ${group.name}\n'
-          '群主ID: ${group.ownerId}',
+          '权限不足：只有群主才能解散群组 | 群组名称: ${group.name}, 群主ID: ${group.ownerId}',
         );
       }
       throw IMException.server(errorCode, errorMsg);
@@ -377,9 +369,7 @@ class GroupServiceImpl implements GroupService {
 
     if (group.ownerId == userId) {
       throw IMException.invalidOperation(
-        '无法移除群主\n'
-        '如需转让群主身份，请使用 transferOwner 方法\n'
-        '群组名称: ${group.name}',
+        '无法移除群主 | 如需转让群主身份，请使用 transferOwner 方法 | 群组名称: ${group.name}',
       );
     }
 
@@ -401,8 +391,7 @@ class GroupServiceImpl implements GroupService {
 
       if (errorCode == 403 || errorMsg.contains('权限')) {
         throw IMException.permission(
-          '权限不足：只有群主或管理员可以移除成员\n'
-          '群组名称: ${group.name}',
+          '权限不足：只有群主或管理员可以移除成员 | 群组名称: ${group.name}',
         );
       }
       throw IMException.server(errorCode, errorMsg);
@@ -439,9 +428,7 @@ class GroupServiceImpl implements GroupService {
 
     if (group.ownerId == newOwnerId) {
       throw IMException.params(
-        '该用户已是群主，无需转让\n'
-        '群组名称: ${group.name}\n'
-        '当前群主ID: ${group.ownerId}',
+        '该用户已是群主，无需转让 | 群组名称: ${group.name}, 当前群主ID: ${group.ownerId}',
       );
     }
 
@@ -465,9 +452,7 @@ class GroupServiceImpl implements GroupService {
 
       if (errorCode == 403 || errorMsg.contains('权限')) {
         throw IMException.permission(
-          '权限不足：只有当前群主才能转让群主身份\n'
-          '群组名称: ${group.name}\n'
-          '当前群主ID: ${group.ownerId}',
+          '权限不足：只有当前群主才能转让群主身份 | 群组名称: ${group.name}, 当前群主ID: ${group.ownerId}',
         );
       }
       throw IMException.server(errorCode, errorMsg);
@@ -525,8 +510,7 @@ class GroupServiceImpl implements GroupService {
 
       if (errorCode == 403 || errorMsg.contains('权限')) {
         throw IMException.permission(
-          '权限不足：只有群主或管理员可以更新群组信息\n'
-          '群组名称: ${group.name}',
+          '权限不足：只有群主或管理员可以更新群组信息 | 群组名称: ${group.name}',
         );
       }
       throw IMException.server(errorCode, errorMsg);

@@ -144,8 +144,7 @@ class IMClient {
   }
 
   Future<void> init({required String serverUrl, IMConfig? config}) async {
-    print('📍[IMClient] ====== init() 开始 ======');
-    print('📍[IMClient] serverUrl: $serverUrl');
+    print('📍[IMClient] init()开始, serverUrl: $serverUrl');
 
     if (_isInitialized) {
       print('⚠️[IMClient] 已初始化，跳过');
@@ -180,8 +179,7 @@ class IMClient {
       _storage = await StorageFactory.getInstance(userId: currentUserId);
       print('✅[IMClient] 存储初始化完成');
     } catch (e, stack) {
-      print('⚠️[IMClient] 存储初始化失败 (非致命): $e');
-      print('⚠️[IMClient] SDK将以无持久化模式运行');
+      print('⚠️[IMClient] 存储初始化失败(非致命): $e, SDK将以无持久化模式运行');
       _dbAvailable = false;
     }
 
@@ -253,9 +251,7 @@ class IMClient {
   }
 
   Future<void> connect(String userToken, {int? userId, String? refreshToken}) async {
-    print('');
-    print('📍[IMClient] ====== connect() 开始 ======');
-    print('📍[IMClient] isInitialized: $_isInitialized');
+    print('📍[IMClient] connect()开始, isInitialized: $_isInitialized');
 
     if (!_isInitialized) {
       print('❌[IMClient] 未初始化，抛出异常');
@@ -295,7 +291,7 @@ class IMClient {
     _initReadReceiptManager();
 
     try {
-      print('📍[IMClient] 调用 ConnectionManager.connect(serverUrl, token)...');
+      print('📍[IMClient] ConnectionManager.connect(serverUrl, token)...');
       await _connectionManager.connect(serverUrl, token);
       print('✅[IMClient] ConnectionManager.connect() 返回成功');
 
@@ -317,8 +313,7 @@ class IMClient {
           delayCalculator: _config.customReconnectDelayCalculator,
           onReconnect: () async {
             try {
-              print('🔄[IMClient] ReconnectManager 执行重连回调...');
-              print('🔄[IMClient] 重连前 token 长度: ${token.length}');
+              print('🔄[IMClient] ReconnectManager执行重连回调, 重连前token长度: ${token.length}');
               // 🔑 重连前先检查并刷新 Token（修复：避免使用已过期的旧 Token）
               await _tokenManager.ensureValidTokenBeforeConnect();
               token = _tokenManager.accessToken ?? token;
@@ -354,11 +349,7 @@ class IMClient {
             print('🔄[IMClient] 重连尝试: $info');
           },
         );
-        print('✅[IMClient] ReconnectManager 初始化完成');
-        print('   最大重试: ${_config.maxRetries}次');
-        print('   无限重试: ${_config.enableInfiniteReconnect}');
-        print('   基础延迟: ${_config.reconnectBaseDelayMs}ms');
-        print('   最大延迟: ${_config.reconnectMaxDelayMs}ms');
+        print('✅[IMClient] ReconnectManager初始化完成, 最大重试:${_config.maxRetries}次, 无限重试:${_config.enableInfiniteReconnect}, 基础延迟:${_config.reconnectBaseDelayMs}ms, 最大延迟:${_config.reconnectMaxDelayMs}ms');
 
         _reconnectSub = _connectionManager.onStatusChanged.listen((status) {
           print('🔗[IMClient] 连接状态变更: $status');
@@ -412,10 +403,7 @@ class IMClient {
       throw StateError('Token 为空，请先调用 connect()');
     }
 
-    print('🔄[IMClient] 手动触发重连...');
-    if (reason != null) {
-      print('🔄[IMClient] 原因: $reason');
-    }
+    print('🔄[IMClient] 手动触发重连${reason != null ? ', 原因: $reason' : ''}');
 
     try {
       _reconnectManager?.cancel();
@@ -1064,8 +1052,7 @@ class IMClient {
     }
 
     try {
-      _log.i('🔍 开始创建好友会话: friendId=$friendId, myId=$myId, currentUserId=$currentUserId');
-      _log.i('🔍 存储类型: ${_storage.runtimeType}');
+      _log.i('🔍 开始创建好友会话: friendId=$friendId, myId=$myId, currentUserId=$currentUserId, 存储类型:${_storage.runtimeType}');
 
       final conversation = await _conversationService.getOrCreateConversation(
         userId: currentUserId!,
@@ -1122,8 +1109,7 @@ class IMClient {
 
       _log.i('✅ 已创建好友会话并插入系统消息: friendId=$friendId, content=$systemContent');
     } catch (e, stackTrace) {
-      _log.e('[IMClient] 创建好友会话失败', error: e);
-      _log.e('[IMClient] 堆栈信息: $stackTrace');
+      _log.e('[IMClient] 创建好友会话失败: $stackTrace', error: e);
     }
   }
 }
