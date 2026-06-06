@@ -15,7 +15,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(this.userId) : super(_openConnection(userId));
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -62,6 +62,16 @@ class AppDatabase extends _$AppDatabase {
           print('[AppDatabase] ✅ 迁移完成: 添加 contacts.userId 字段');
         } catch (e) {
           print('[AppDatabase] ⚠️ contacts.userId 字段已存在，跳过迁移: $e');
+        }
+      }
+      if (from < 8) {
+        // contacts.id 改为 AUTOINCREMENT：删除旧表后用 Drift 重建（联系人数据从服务器同步，无需迁移旧数据）
+        try {
+          await customStatement('DROP TABLE IF EXISTS contacts');
+          await m.create(contacts);
+          print('[AppDatabase] ✅ 迁移完成: contacts 表已重建（id 为 AUTOINCREMENT）');
+        } catch (e) {
+          print('[AppDatabase] ⚠️ contacts 表重建失败（可能已是新结构）: $e');
         }
       }
     },

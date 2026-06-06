@@ -8,13 +8,25 @@ import '../event/event_bus.dart';
 import '../event/im_event.dart';
 import 'conversation_service.dart';
 
+/// 已读回执发送回调：将已读回执通过 WebSocket 发送到服务端
+/// 参数为会话的目标ID和群组ID，由调用方（IMClient）负责查询未读消息并批量发送
+typedef OnSendReadReceipt = Future<void> Function({
+  required int targetId,
+  int? groupId,
+});
+
 class ConversationServiceImpl implements ConversationService {
   final StorageInterface _dbHelper;
   final EventBus _eventBus = EventBus();
+  final OnSendReadReceipt? _onSendReadReceipt;
 
   final Logger _log = AppLogger.instance;
 
-  ConversationServiceImpl({required StorageInterface dbHelper}) : _dbHelper = dbHelper;
+  ConversationServiceImpl({
+    required StorageInterface dbHelper,
+    OnSendReadReceipt? onSendReadReceipt,
+  }) : _dbHelper = dbHelper,
+       _onSendReadReceipt = onSendReadReceipt;
 
   @override
   Future<List<Conversation>> getConversationList(int userId) async {
@@ -89,18 +101,21 @@ class ConversationServiceImpl implements ConversationService {
     final conversation = await getConversation(conversationId);
     if (conversation == null || conversation.unreadCount <= 0) return;
 
+    // 先更新会话未读数（会话级别操作，MessageService 不处理）
     await _dbHelper.updateUnreadCount(conversationId, 0);
 
-    if (conversation.isGroup) {
-      await _dbHelper.markAsRead(conversation.userId, groupId: conversation.targetId);
-    } else {
-      await _dbHelper.markAsRead(
-        conversation.userId,
-        targetId: conversation.targetId,
-      );
+    // 委托给 IMClient 回调 → MessageService 处理：标记消息已读 + 发送 WebSocket 回执
+    if (_onSendReadReceipt != null) {
+      try {
+        await _onSendReadReceipt!(
+          targetId: conversation.targetId,
+          groupId: conversation.isGroup ? conversation.targetId : null,
+        );
+        _log.i('✅ 已读回执委托发送完成: targetId=${conversation.targetId}');
+      } catch (e) {
+        _log.e('❌ 已读回执委托发送失败: $e');
+      }
     }
-
-    _sendReadReceipt(conversation);
 
     final updated = conversation.copyWith(unreadCount: 0);
     _eventBus.fire(ConversationUpdatedEvent(conversation: updated));
@@ -143,18 +158,4 @@ class ConversationServiceImpl implements ConversationService {
     _eventBus.fire(ConversationUpdatedEvent(conversation: updated));
   }
 
-  void _sendReadReceipt(Conversation conversation) {
-    try {
-      final receiptData = {
-        'type': conversation.isGroup
-            ? 'group_read_receipt'
-            : 'private_read_receipt',
-        'targetId': conversation.targetId,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-      };
-      _log.d('发送已读回执: $receiptData');
-    } catch (e) {
-      _log.e('发送已读回执失败', error: e);
-    }
-  }
 }

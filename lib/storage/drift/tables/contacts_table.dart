@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 /// 联系人表（好友列表）
 class Contacts extends Table {
   /// 本地记录ID（自增，无业务含义，不存储服务端返回的任何ID）
-  IntColumn get id => integer()();
+  IntColumn get id => integer().autoIncrement()();
 
   /// IM用户名(登录账号)
   TextColumn get username => text()();
@@ -49,7 +49,4 @@ class Contacts extends Table {
 
   /// 建立好友关系的时间(时间戳毫秒)
   IntColumn get createTime => integer()();
-
-  @override
-  Set<Column> get primaryKey => {id};
 }

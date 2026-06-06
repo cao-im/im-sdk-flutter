@@ -208,7 +208,16 @@ class IMClient {
       eventBus: _eventBus,
     );
 
-    _conversationService = ConversationServiceImpl(dbHelper: _storage);
+    _conversationService = ConversationServiceImpl(
+      dbHelper: _storage,
+      onSendReadReceipt: ({required int targetId, int? groupId}) async {
+        // 委托给 MessageService 处理：查询未读消息 + 通过 ReadReceiptManager 发送回执
+        await _messageService.markConversationAsRead(
+          targetId: targetId,
+          groupId: groupId,
+        );
+      },
+    );
   }
 
   void _setupEventHandlers() {

@@ -285,13 +285,12 @@ class MessageServiceImpl implements MessageService {
       final allMessages = await _databaseHelper.getMessages(
         targetId: userId,
         currentUserId: userId,
-        size: 1000,
+        size: 10000,
       );
 
+      // 排除已读消息，其余均为待处理（含收到但未读的消息）
       final unreadMessages = allMessages
-          .where((m) => m.status == MessageStatus.sending ||
-                     m.status == MessageStatus.sent ||
-                     m.status == MessageStatus.delivered)
+          .where((m) => m.status != MessageStatus.read)
           .toList();
 
       _log.i('获取到 ${unreadMessages.length} 条未读消息');
@@ -338,28 +337,35 @@ class MessageServiceImpl implements MessageService {
 
     try {
       final currentUserId = _getCurrentUserId();
+
+      // 先查询该会话的未读消息（在标记已读之前，否则查不到了）
+      final allMessages = await _databaseHelper.getMessages(
+        targetId: targetId,
+        currentUserId: currentUserId,
+        size: 10000,
+      );
+
+      final unreadMessages = allMessages
+          .where((m) => m.status != MessageStatus.read)
+          .toList();
+
+      _log.i('查到 ${unreadMessages.length} 条未读消息，准备发送回执');
+
+      // 标记本地消息为已读
       await _databaseHelper.markAsRead(
         currentUserId,
         targetId: groupId == null ? targetId : null,
         groupId: groupId,
       );
 
-      final unreadMessages = await getUnreadMessages(currentUserId);
-      final filteredMessages = groupId != null
-          ? unreadMessages.where((m) => m.groupId == groupId).toList()
-          : unreadMessages
-                .where(
-                  (m) =>
-                      (m.fromId == targetId || m.toId == targetId) &&
-                      m.groupId == null,
-                )
-                .toList();
-
-      for (final msg in filteredMessages) {
-        await _readReceiptManager.enqueueReceipt(msg.id!, groupId: groupId);
+      // 批量发送已读回执到服务端
+      for (final msg in unreadMessages) {
+        if (msg.id != null) {
+          await _readReceiptManager.enqueueReceipt(msg.id!, groupId: groupId);
+        }
       }
 
-      _log.i('会话已读标记完成, targetId=$targetId, 消息数=${filteredMessages.length}');
+      _log.i('会话已读标记完成, targetId=$targetId, 回执数=${unreadMessages.length}');
     } catch (e) {
       _log.e('标记会话已读失败, targetId=$targetId', error: e);
       rethrow;

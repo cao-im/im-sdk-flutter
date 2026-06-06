@@ -276,6 +276,9 @@ class DriftStorage implements StorageInterface {
     }
   }
 
+  /// 暴露底层 AppDatabase 实例（供需要直接操作数据库的组件复用连接）
+  AppDatabase get appDatabase => _db;
+
   model.Message _toMessage(Message row) {
     return model.Message(
       id: row.id,
