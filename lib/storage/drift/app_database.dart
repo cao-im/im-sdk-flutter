@@ -15,7 +15,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(this.userId) : super(_openConnection(userId));
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -73,6 +73,10 @@ class AppDatabase extends _$AppDatabase {
         } catch (e) {
           print('[AppDatabase] ⚠️ contacts 表重建失败（可能已是新结构）: $e');
         }
+      }
+      if (from < 9) {
+        await m.addColumn(messages, messages.delivered);
+        print('[AppDatabase] ✅ 迁移完成: 添加 messages.delivered 字段');
       }
     },
   );

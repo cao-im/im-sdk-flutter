@@ -47,4 +47,7 @@ class Messages extends Table {
 
   /// 阅读状态: 0-未读, 1-已读
   IntColumn get readStatus => integer().withDefault(const Constant(0))();
+
+  /// 送达状态: false-未送达, true-已送达（独立于status，发送方视角）
+  BoolColumn get delivered => boolean().withDefault(const Constant(false))();
 }

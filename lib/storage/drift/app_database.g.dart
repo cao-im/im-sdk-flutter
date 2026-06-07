@@ -167,6 +167,21 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _deliveredMeta = const VerificationMeta(
+    'delivered',
+  );
+  @override
+  late final GeneratedColumn<bool> delivered = GeneratedColumn<bool>(
+    'delivered',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("delivered" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -184,6 +199,7 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     atUserIds,
     extra,
     readStatus,
+    delivered,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -299,6 +315,12 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         readStatus.isAcceptableOrUnknown(data['read_status']!, _readStatusMeta),
       );
     }
+    if (data.containsKey('delivered')) {
+      context.handle(
+        _deliveredMeta,
+        delivered.isAcceptableOrUnknown(data['delivered']!, _deliveredMeta),
+      );
+    }
     return context;
   }
 
@@ -368,6 +390,10 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         DriftSqlType.int,
         data['${effectivePrefix}read_status'],
       )!,
+      delivered: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}delivered'],
+      )!,
     );
   }
 
@@ -422,6 +448,9 @@ class Message extends DataClass implements Insertable<Message> {
 
   /// 阅读状态: 0-未读, 1-已读
   final int readStatus;
+
+  /// 送达状态: false-未送达, true-已送达（独立于status，发送方视角）
+  final bool delivered;
   const Message({
     required this.id,
     required this.mid,
@@ -438,6 +467,7 @@ class Message extends DataClass implements Insertable<Message> {
     required this.atUserIds,
     this.extra,
     required this.readStatus,
+    required this.delivered,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -465,6 +495,7 @@ class Message extends DataClass implements Insertable<Message> {
       map['extra'] = Variable<String>(extra);
     }
     map['read_status'] = Variable<int>(readStatus);
+    map['delivered'] = Variable<bool>(delivered);
     return map;
   }
 
@@ -493,6 +524,7 @@ class Message extends DataClass implements Insertable<Message> {
           ? const Value.absent()
           : Value(extra),
       readStatus: Value(readStatus),
+      delivered: Value(delivered),
     );
   }
 
@@ -517,6 +549,7 @@ class Message extends DataClass implements Insertable<Message> {
       atUserIds: serializer.fromJson<String>(json['atUserIds']),
       extra: serializer.fromJson<String?>(json['extra']),
       readStatus: serializer.fromJson<int>(json['readStatus']),
+      delivered: serializer.fromJson<bool>(json['delivered']),
     );
   }
   @override
@@ -538,6 +571,7 @@ class Message extends DataClass implements Insertable<Message> {
       'atUserIds': serializer.toJson<String>(atUserIds),
       'extra': serializer.toJson<String?>(extra),
       'readStatus': serializer.toJson<int>(readStatus),
+      'delivered': serializer.toJson<bool>(delivered),
     };
   }
 
@@ -557,6 +591,7 @@ class Message extends DataClass implements Insertable<Message> {
     String? atUserIds,
     Value<String?> extra = const Value.absent(),
     int? readStatus,
+    bool? delivered,
   }) => Message(
     id: id ?? this.id,
     mid: mid ?? this.mid,
@@ -573,6 +608,7 @@ class Message extends DataClass implements Insertable<Message> {
     atUserIds: atUserIds ?? this.atUserIds,
     extra: extra.present ? extra.value : this.extra,
     readStatus: readStatus ?? this.readStatus,
+    delivered: delivered ?? this.delivered,
   );
   Message copyWithCompanion(MessagesCompanion data) {
     return Message(
@@ -595,6 +631,7 @@ class Message extends DataClass implements Insertable<Message> {
       readStatus: data.readStatus.present
           ? data.readStatus.value
           : this.readStatus,
+      delivered: data.delivered.present ? data.delivered.value : this.delivered,
     );
   }
 
@@ -615,7 +652,8 @@ class Message extends DataClass implements Insertable<Message> {
           ..write('replyMsgId: $replyMsgId, ')
           ..write('atUserIds: $atUserIds, ')
           ..write('extra: $extra, ')
-          ..write('readStatus: $readStatus')
+          ..write('readStatus: $readStatus, ')
+          ..write('delivered: $delivered')
           ..write(')'))
         .toString();
   }
@@ -637,6 +675,7 @@ class Message extends DataClass implements Insertable<Message> {
     atUserIds,
     extra,
     readStatus,
+    delivered,
   );
   @override
   bool operator ==(Object other) =>
@@ -656,7 +695,8 @@ class Message extends DataClass implements Insertable<Message> {
           other.replyMsgId == this.replyMsgId &&
           other.atUserIds == this.atUserIds &&
           other.extra == this.extra &&
-          other.readStatus == this.readStatus);
+          other.readStatus == this.readStatus &&
+          other.delivered == this.delivered);
 }
 
 class MessagesCompanion extends UpdateCompanion<Message> {
@@ -675,6 +715,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   final Value<String> atUserIds;
   final Value<String?> extra;
   final Value<int> readStatus;
+  final Value<bool> delivered;
   const MessagesCompanion({
     this.id = const Value.absent(),
     this.mid = const Value.absent(),
@@ -691,6 +732,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.atUserIds = const Value.absent(),
     this.extra = const Value.absent(),
     this.readStatus = const Value.absent(),
+    this.delivered = const Value.absent(),
   });
   MessagesCompanion.insert({
     this.id = const Value.absent(),
@@ -708,6 +750,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.atUserIds = const Value.absent(),
     this.extra = const Value.absent(),
     this.readStatus = const Value.absent(),
+    this.delivered = const Value.absent(),
   }) : fromId = Value(fromId),
        toId = Value(toId),
        content = Value(content),
@@ -730,6 +773,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     Expression<String>? atUserIds,
     Expression<String>? extra,
     Expression<int>? readStatus,
+    Expression<bool>? delivered,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -747,6 +791,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       if (atUserIds != null) 'at_user_ids': atUserIds,
       if (extra != null) 'extra': extra,
       if (readStatus != null) 'read_status': readStatus,
+      if (delivered != null) 'delivered': delivered,
     });
   }
 
@@ -766,6 +811,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     Value<String>? atUserIds,
     Value<String?>? extra,
     Value<int>? readStatus,
+    Value<bool>? delivered,
   }) {
     return MessagesCompanion(
       id: id ?? this.id,
@@ -783,6 +829,7 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       atUserIds: atUserIds ?? this.atUserIds,
       extra: extra ?? this.extra,
       readStatus: readStatus ?? this.readStatus,
+      delivered: delivered ?? this.delivered,
     );
   }
 
@@ -834,6 +881,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     if (readStatus.present) {
       map['read_status'] = Variable<int>(readStatus.value);
     }
+    if (delivered.present) {
+      map['delivered'] = Variable<bool>(delivered.value);
+    }
     return map;
   }
 
@@ -854,7 +904,8 @@ class MessagesCompanion extends UpdateCompanion<Message> {
           ..write('replyMsgId: $replyMsgId, ')
           ..write('atUserIds: $atUserIds, ')
           ..write('extra: $extra, ')
-          ..write('readStatus: $readStatus')
+          ..write('readStatus: $readStatus, ')
+          ..write('delivered: $delivered')
           ..write(')'))
         .toString();
   }
@@ -2941,6 +2992,7 @@ typedef $$MessagesTableCreateCompanionBuilder =
       Value<String> atUserIds,
       Value<String?> extra,
       Value<int> readStatus,
+      Value<bool> delivered,
     });
 typedef $$MessagesTableUpdateCompanionBuilder =
     MessagesCompanion Function({
@@ -2959,6 +3011,7 @@ typedef $$MessagesTableUpdateCompanionBuilder =
       Value<String> atUserIds,
       Value<String?> extra,
       Value<int> readStatus,
+      Value<bool> delivered,
     });
 
 class $$MessagesTableFilterComposer
@@ -3042,6 +3095,11 @@ class $$MessagesTableFilterComposer
 
   ColumnFilters<int> get readStatus => $composableBuilder(
     column: $table.readStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get delivered => $composableBuilder(
+    column: $table.delivered,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3129,6 +3187,11 @@ class $$MessagesTableOrderingComposer
     column: $table.readStatus,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get delivered => $composableBuilder(
+    column: $table.delivered,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MessagesTableAnnotationComposer
@@ -3188,6 +3251,9 @@ class $$MessagesTableAnnotationComposer
     column: $table.readStatus,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get delivered =>
+      $composableBuilder(column: $table.delivered, builder: (column) => column);
 }
 
 class $$MessagesTableTableManager
@@ -3233,6 +3299,7 @@ class $$MessagesTableTableManager
                 Value<String> atUserIds = const Value.absent(),
                 Value<String?> extra = const Value.absent(),
                 Value<int> readStatus = const Value.absent(),
+                Value<bool> delivered = const Value.absent(),
               }) => MessagesCompanion(
                 id: id,
                 mid: mid,
@@ -3249,6 +3316,7 @@ class $$MessagesTableTableManager
                 atUserIds: atUserIds,
                 extra: extra,
                 readStatus: readStatus,
+                delivered: delivered,
               ),
           createCompanionCallback:
               ({
@@ -3267,6 +3335,7 @@ class $$MessagesTableTableManager
                 Value<String> atUserIds = const Value.absent(),
                 Value<String?> extra = const Value.absent(),
                 Value<int> readStatus = const Value.absent(),
+                Value<bool> delivered = const Value.absent(),
               }) => MessagesCompanion.insert(
                 id: id,
                 mid: mid,
@@ -3283,6 +3352,7 @@ class $$MessagesTableTableManager
                 atUserIds: atUserIds,
                 extra: extra,
                 readStatus: readStatus,
+                delivered: delivered,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

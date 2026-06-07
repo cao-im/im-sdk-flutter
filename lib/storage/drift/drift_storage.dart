@@ -56,6 +56,7 @@ class DriftStorage implements StorageInterface {
       content: message.content,
       msgType: message.msgType.value,
       status: message.status.value,
+      delivered: Value(message.delivered),
       timestamp: message.timestamp,
       localPath: Value(message.localPath),
     );
@@ -147,7 +148,14 @@ class DriftStorage implements StorageInterface {
               id: Value(message.id!),
               mid: Value(message.mid ?? 0),
               status: Value(message.status.value),
+              delivered: Value(message.delivered),
             ));
+  }
+
+  @override
+  Future<void> updateMessageDelivered(int mid) async {
+    await (_db.update(_db.messages)..where((tbl) => tbl.mid.equals(mid)))
+        .write(const MessagesCompanion(delivered: Value(true)));
   }
 
   @override
@@ -311,6 +319,7 @@ class DriftStorage implements StorageInterface {
       content: row.content,
       msgType: model.MessageType.fromValue(row.msgType),
       status: model.MessageStatus.fromValue(row.status),
+      delivered: row.delivered,
       timestamp: row.timestamp,
       localPath: row.localPath,
     );

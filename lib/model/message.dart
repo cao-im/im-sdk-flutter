@@ -46,6 +46,8 @@ class Message {
   final String content;
   final MessageType msgType;
   MessageStatus status;
+  /// 送达状态（独立于status，发送方视角）：false=未送达, true=已送达
+  bool delivered;
   final int timestamp;
   final String? localPath;
   final SenderInfo? senderInfo;
@@ -60,6 +62,7 @@ class Message {
     required this.content,
     this.msgType = MessageType.text,
     this.status = MessageStatus.sending,
+    this.delivered = false,
     int? timestamp,
     this.localPath,
     this.senderInfo,
@@ -77,6 +80,7 @@ class Message {
       content: json['content'] ?? '',
       msgType: MessageType.fromValue(json['msgType'] ?? 0),
       status: MessageStatus.fromValue(json['status'] ?? 0),
+      delivered: json['delivered'] == true || json['delivered'] == 1,
       timestamp: json['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
       localPath: json['localPath'],
       senderInfo: json['senderInfo'] != null
@@ -98,6 +102,7 @@ class Message {
       'content': content,
       'msgType': msgType.value,
       'status': status.value,
+      'delivered': delivered,
       'timestamp': timestamp,
       'localPath': localPath,
       if (senderInfo != null) 'senderInfo': senderInfo!.toJson(),
@@ -128,6 +133,7 @@ class Message {
     String? content,
     MessageType? msgType,
     MessageStatus? status,
+    bool? delivered,
     int? timestamp,
     String? localPath,
     SenderInfo? senderInfo,
@@ -142,6 +148,7 @@ class Message {
       content: content ?? this.content,
       msgType: msgType ?? this.msgType,
       status: status ?? this.status,
+      delivered: delivered ?? this.delivered,
       timestamp: timestamp ?? this.timestamp,
       localPath: localPath ?? this.localPath,
       senderInfo: senderInfo ?? this.senderInfo,

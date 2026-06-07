@@ -26,6 +26,9 @@ abstract class StorageInterface {
   /// 更新消息（支持更新 id、status 等字段）
   Future<void> updateMessage(Message message);
 
+  /// 更新消息送达状态（通过 mid 匹配）
+  Future<void> updateMessageDelivered(int mid);
+
   Future<void> updateMessageContent(int messageId, String content, MessageStatus status);
 
   Future<int> getUnreadCount(int userId);

@@ -700,10 +700,18 @@ class IMClient {
         _eventBus.fire(MessageReceivedEvent(message: message));
         _updateConversationFromMessage(message);
       });
+
+      // ✅ 接收方自动发送送达回执（delivery_ack）
+      // 仅对发给当前用户的消息（非自己发的）发送送达确认
+      if (message.mid != null && message.mid! > 0 && currentUserId != null) {
+        _sendDeliveryAck(message.mid!);
+      }
     } else if (type == 'read_receipt') {
       _handleReadReceipt(data);
     } else if (type == 'send_confirmation') {
       _handleSendConfirmation(data);
+    } else if (type == 'delivery_confirmation') {
+      _handleDeliveryConfirmation(data);
     } else if (type == 'recall_message') {
       _handleRecalledMessage(data);
     } else if (type == 'pong') {
@@ -839,6 +847,55 @@ class IMClient {
       });
     } catch (e) {
       _log.e('处理发送确认失败', error: e);
+    }
+  }
+
+  /// 处理送达确认：接收方收到消息后，服务端通知发送方"已送达"
+  void _handleDeliveryConfirmation(Map<String, dynamic> data) {
+    try {
+      final mid = data['mid'];
+      if (mid == null) return;
+
+      _log.i('📦 [IMClient] 收到 delivery_confirmation, mid=$mid');
+
+      // 用 mid 查找本地消息并更新送达状态
+      _storage.getMessageByMid(mid).then((localMessage) async {
+        if (localMessage == null) {
+          _log.w('⚠️ [IMClient] 未找到 mid=$mid 对应的本地消息（delivery_confirmation）');
+          return;
+        }
+
+        // 更新本地消息的 delivered 状态
+        final updatedMessage = localMessage.copyWith(delivered: true);
+        await _storage.updateMessage(updatedMessage);
+
+        _log.i('✅ [IMClient] 消息送达状态已更新: mid=$mid, delivered=true');
+        _eventBus.fire(MessageSentEvent(message: updatedMessage));
+      }).catchError((e) {
+        _log.e('❌ [IMClient] 处理 delivery_confirmation 失败', error: e);
+      });
+    } catch (e) {
+      _log.e('处理送达确认失败', error: e);
+    }
+  }
+
+  /// 发送送达回执：通知服务端"我已收到这条消息"
+  void _sendDeliveryAck(int mid) {
+    try {
+      if (!_connectionManager.isConnected) {
+        _log.d('📴 [IMClient] 网络未连接，跳过 delivery_ack: mid=$mid');
+        return;
+      }
+
+      _connectionManager.sendMessage({
+        'type': 'delivery_ack',
+        'mids': [mid],
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      _log.i('📤 [IMClient] 已发送 delivery_ack, mid=$mid');
+    } catch (e) {
+      _log.e('❌ [IMClient] 发送 delivery_ack 失败, mid=$mid', error: e);
     }
   }
 
@@ -1203,6 +1260,9 @@ class _FallbackStorage implements StorageInterface {
 
   @override
   Future<void> updateMessage(Message message) async {}
+
+  @override
+  Future<void> updateMessageDelivered(int mid) async {}
 
   @override
   Future<void> updateMessageContent(int messageId, String content, MessageStatus status) async {}
