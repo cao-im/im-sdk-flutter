@@ -113,16 +113,6 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _msgSeqMeta = const VerificationMeta('msgSeq');
-  @override
-  late final GeneratedColumn<int> msgSeq = GeneratedColumn<int>(
-    'msg_seq',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
   static const VerificationMeta _replyMsgIdMeta = const VerificationMeta(
     'replyMsgId',
   );
@@ -194,7 +184,6 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     status,
     timestamp,
     localPath,
-    msgSeq,
     replyMsgId,
     atUserIds,
     extra,
@@ -282,12 +271,6 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta),
       );
     }
-    if (data.containsKey('msg_seq')) {
-      context.handle(
-        _msgSeqMeta,
-        msgSeq.isAcceptableOrUnknown(data['msg_seq']!, _msgSeqMeta),
-      );
-    }
     if (data.containsKey('reply_msg_id')) {
       context.handle(
         _replyMsgIdMeta,
@@ -370,10 +353,6 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         DriftSqlType.string,
         data['${effectivePrefix}local_path'],
       ),
-      msgSeq: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}msg_seq'],
-      )!,
       replyMsgId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}reply_msg_id'],
@@ -434,9 +413,6 @@ class Message extends DataClass implements Insertable<Message> {
   /// 本地存储路径(图片/视频/文件等富媒体消息的本地路径)
   final String? localPath;
 
-  /// 消息序号(用于排序和去重，保证全局有序)
-  final int msgSeq;
-
   /// 引用/回复的消息ID(实现消息引用功能)
   final int? replyMsgId;
 
@@ -462,7 +438,6 @@ class Message extends DataClass implements Insertable<Message> {
     required this.status,
     required this.timestamp,
     this.localPath,
-    required this.msgSeq,
     this.replyMsgId,
     required this.atUserIds,
     this.extra,
@@ -486,7 +461,6 @@ class Message extends DataClass implements Insertable<Message> {
     if (!nullToAbsent || localPath != null) {
       map['local_path'] = Variable<String>(localPath);
     }
-    map['msg_seq'] = Variable<int>(msgSeq);
     if (!nullToAbsent || replyMsgId != null) {
       map['reply_msg_id'] = Variable<int>(replyMsgId);
     }
@@ -515,7 +489,6 @@ class Message extends DataClass implements Insertable<Message> {
       localPath: localPath == null && nullToAbsent
           ? const Value.absent()
           : Value(localPath),
-      msgSeq: Value(msgSeq),
       replyMsgId: replyMsgId == null && nullToAbsent
           ? const Value.absent()
           : Value(replyMsgId),
@@ -544,7 +517,6 @@ class Message extends DataClass implements Insertable<Message> {
       status: serializer.fromJson<int>(json['status']),
       timestamp: serializer.fromJson<int>(json['timestamp']),
       localPath: serializer.fromJson<String?>(json['localPath']),
-      msgSeq: serializer.fromJson<int>(json['msgSeq']),
       replyMsgId: serializer.fromJson<int?>(json['replyMsgId']),
       atUserIds: serializer.fromJson<String>(json['atUserIds']),
       extra: serializer.fromJson<String?>(json['extra']),
@@ -566,7 +538,6 @@ class Message extends DataClass implements Insertable<Message> {
       'status': serializer.toJson<int>(status),
       'timestamp': serializer.toJson<int>(timestamp),
       'localPath': serializer.toJson<String?>(localPath),
-      'msgSeq': serializer.toJson<int>(msgSeq),
       'replyMsgId': serializer.toJson<int?>(replyMsgId),
       'atUserIds': serializer.toJson<String>(atUserIds),
       'extra': serializer.toJson<String?>(extra),
@@ -586,7 +557,6 @@ class Message extends DataClass implements Insertable<Message> {
     int? status,
     int? timestamp,
     Value<String?> localPath = const Value.absent(),
-    int? msgSeq,
     Value<int?> replyMsgId = const Value.absent(),
     String? atUserIds,
     Value<String?> extra = const Value.absent(),
@@ -603,7 +573,6 @@ class Message extends DataClass implements Insertable<Message> {
     status: status ?? this.status,
     timestamp: timestamp ?? this.timestamp,
     localPath: localPath.present ? localPath.value : this.localPath,
-    msgSeq: msgSeq ?? this.msgSeq,
     replyMsgId: replyMsgId.present ? replyMsgId.value : this.replyMsgId,
     atUserIds: atUserIds ?? this.atUserIds,
     extra: extra.present ? extra.value : this.extra,
@@ -622,7 +591,6 @@ class Message extends DataClass implements Insertable<Message> {
       status: data.status.present ? data.status.value : this.status,
       timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
       localPath: data.localPath.present ? data.localPath.value : this.localPath,
-      msgSeq: data.msgSeq.present ? data.msgSeq.value : this.msgSeq,
       replyMsgId: data.replyMsgId.present
           ? data.replyMsgId.value
           : this.replyMsgId,
@@ -648,7 +616,6 @@ class Message extends DataClass implements Insertable<Message> {
           ..write('status: $status, ')
           ..write('timestamp: $timestamp, ')
           ..write('localPath: $localPath, ')
-          ..write('msgSeq: $msgSeq, ')
           ..write('replyMsgId: $replyMsgId, ')
           ..write('atUserIds: $atUserIds, ')
           ..write('extra: $extra, ')
@@ -670,7 +637,6 @@ class Message extends DataClass implements Insertable<Message> {
     status,
     timestamp,
     localPath,
-    msgSeq,
     replyMsgId,
     atUserIds,
     extra,
@@ -691,7 +657,6 @@ class Message extends DataClass implements Insertable<Message> {
           other.status == this.status &&
           other.timestamp == this.timestamp &&
           other.localPath == this.localPath &&
-          other.msgSeq == this.msgSeq &&
           other.replyMsgId == this.replyMsgId &&
           other.atUserIds == this.atUserIds &&
           other.extra == this.extra &&
@@ -710,7 +675,6 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   final Value<int> status;
   final Value<int> timestamp;
   final Value<String?> localPath;
-  final Value<int> msgSeq;
   final Value<int?> replyMsgId;
   final Value<String> atUserIds;
   final Value<String?> extra;
@@ -727,7 +691,6 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.status = const Value.absent(),
     this.timestamp = const Value.absent(),
     this.localPath = const Value.absent(),
-    this.msgSeq = const Value.absent(),
     this.replyMsgId = const Value.absent(),
     this.atUserIds = const Value.absent(),
     this.extra = const Value.absent(),
@@ -745,7 +708,6 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     required int status,
     required int timestamp,
     this.localPath = const Value.absent(),
-    this.msgSeq = const Value.absent(),
     this.replyMsgId = const Value.absent(),
     this.atUserIds = const Value.absent(),
     this.extra = const Value.absent(),
@@ -768,7 +730,6 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     Expression<int>? status,
     Expression<int>? timestamp,
     Expression<String>? localPath,
-    Expression<int>? msgSeq,
     Expression<int>? replyMsgId,
     Expression<String>? atUserIds,
     Expression<String>? extra,
@@ -786,7 +747,6 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       if (status != null) 'status': status,
       if (timestamp != null) 'timestamp': timestamp,
       if (localPath != null) 'local_path': localPath,
-      if (msgSeq != null) 'msg_seq': msgSeq,
       if (replyMsgId != null) 'reply_msg_id': replyMsgId,
       if (atUserIds != null) 'at_user_ids': atUserIds,
       if (extra != null) 'extra': extra,
@@ -806,7 +766,6 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     Value<int>? status,
     Value<int>? timestamp,
     Value<String?>? localPath,
-    Value<int>? msgSeq,
     Value<int?>? replyMsgId,
     Value<String>? atUserIds,
     Value<String?>? extra,
@@ -824,7 +783,6 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       status: status ?? this.status,
       timestamp: timestamp ?? this.timestamp,
       localPath: localPath ?? this.localPath,
-      msgSeq: msgSeq ?? this.msgSeq,
       replyMsgId: replyMsgId ?? this.replyMsgId,
       atUserIds: atUserIds ?? this.atUserIds,
       extra: extra ?? this.extra,
@@ -866,9 +824,6 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     if (localPath.present) {
       map['local_path'] = Variable<String>(localPath.value);
     }
-    if (msgSeq.present) {
-      map['msg_seq'] = Variable<int>(msgSeq.value);
-    }
     if (replyMsgId.present) {
       map['reply_msg_id'] = Variable<int>(replyMsgId.value);
     }
@@ -900,7 +855,6 @@ class MessagesCompanion extends UpdateCompanion<Message> {
           ..write('status: $status, ')
           ..write('timestamp: $timestamp, ')
           ..write('localPath: $localPath, ')
-          ..write('msgSeq: $msgSeq, ')
           ..write('replyMsgId: $replyMsgId, ')
           ..write('atUserIds: $atUserIds, ')
           ..write('extra: $extra, ')
@@ -2987,7 +2941,6 @@ typedef $$MessagesTableCreateCompanionBuilder =
       required int status,
       required int timestamp,
       Value<String?> localPath,
-      Value<int> msgSeq,
       Value<int?> replyMsgId,
       Value<String> atUserIds,
       Value<String?> extra,
@@ -3006,7 +2959,6 @@ typedef $$MessagesTableUpdateCompanionBuilder =
       Value<int> status,
       Value<int> timestamp,
       Value<String?> localPath,
-      Value<int> msgSeq,
       Value<int?> replyMsgId,
       Value<String> atUserIds,
       Value<String?> extra,
@@ -3070,11 +3022,6 @@ class $$MessagesTableFilterComposer
 
   ColumnFilters<String> get localPath => $composableBuilder(
     column: $table.localPath,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get msgSeq => $composableBuilder(
-    column: $table.msgSeq,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3163,11 +3110,6 @@ class $$MessagesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get msgSeq => $composableBuilder(
-    column: $table.msgSeq,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get replyMsgId => $composableBuilder(
     column: $table.replyMsgId,
     builder: (column) => ColumnOrderings(column),
@@ -3233,9 +3175,6 @@ class $$MessagesTableAnnotationComposer
   GeneratedColumn<String> get localPath =>
       $composableBuilder(column: $table.localPath, builder: (column) => column);
 
-  GeneratedColumn<int> get msgSeq =>
-      $composableBuilder(column: $table.msgSeq, builder: (column) => column);
-
   GeneratedColumn<int> get replyMsgId => $composableBuilder(
     column: $table.replyMsgId,
     builder: (column) => column,
@@ -3294,7 +3233,6 @@ class $$MessagesTableTableManager
                 Value<int> status = const Value.absent(),
                 Value<int> timestamp = const Value.absent(),
                 Value<String?> localPath = const Value.absent(),
-                Value<int> msgSeq = const Value.absent(),
                 Value<int?> replyMsgId = const Value.absent(),
                 Value<String> atUserIds = const Value.absent(),
                 Value<String?> extra = const Value.absent(),
@@ -3311,7 +3249,6 @@ class $$MessagesTableTableManager
                 status: status,
                 timestamp: timestamp,
                 localPath: localPath,
-                msgSeq: msgSeq,
                 replyMsgId: replyMsgId,
                 atUserIds: atUserIds,
                 extra: extra,
@@ -3330,7 +3267,6 @@ class $$MessagesTableTableManager
                 required int status,
                 required int timestamp,
                 Value<String?> localPath = const Value.absent(),
-                Value<int> msgSeq = const Value.absent(),
                 Value<int?> replyMsgId = const Value.absent(),
                 Value<String> atUserIds = const Value.absent(),
                 Value<String?> extra = const Value.absent(),
@@ -3347,7 +3283,6 @@ class $$MessagesTableTableManager
                 status: status,
                 timestamp: timestamp,
                 localPath: localPath,
-                msgSeq: msgSeq,
                 replyMsgId: replyMsgId,
                 atUserIds: atUserIds,
                 extra: extra,

@@ -35,7 +35,6 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         await m.createTable(contacts);
-        await m.addColumn(messages, messages.msgSeq);
         await m.addColumn(messages, messages.replyMsgId);
         await m.addColumn(messages, messages.atUserIds);
         await m.addColumn(messages, messages.extra);

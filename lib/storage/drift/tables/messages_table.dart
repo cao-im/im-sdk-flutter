@@ -33,9 +33,6 @@ class Messages extends Table {
   /// 本地存储路径(图片/视频/文件等富媒体消息的本地路径)
   TextColumn get localPath => text().nullable()();
 
-  /// 消息序号(用于排序和去重，保证全局有序)
-  IntColumn get msgSeq => integer().withDefault(const Constant(0))();
-
   /// 引用/回复的消息ID(实现消息引用功能)
   IntColumn get replyMsgId => integer().nullable()();
 
