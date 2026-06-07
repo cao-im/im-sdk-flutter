@@ -18,7 +18,13 @@ abstract class StorageInterface {
 
   Future<Message?> getMessageById(int messageId);
 
+  /// 根据 mid（客户端生成的全局唯一ID）查找消息
+  Future<Message?> getMessageByMid(int mid);
+
   Future<void> updateMessageStatus(int messageId, MessageStatus status);
+
+  /// 更新消息（支持更新 id、status 等字段）
+  Future<void> updateMessage(Message message);
 
   Future<void> updateMessageContent(int messageId, String content, MessageStatus status);
 

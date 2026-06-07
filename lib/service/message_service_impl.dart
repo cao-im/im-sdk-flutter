@@ -8,6 +8,7 @@ import '../model/message.dart';
 import '../model/conversation.dart';
 import '../storage/storage_interface.dart';
 import '../utils/logger.dart';
+import '../utils/snowflake.dart';
 import '../client/im_client.dart';
 import '../core/read_receipt_manager.dart';
 import 'message_service.dart';
@@ -76,7 +77,11 @@ class MessageServiceImpl implements MessageService {
       throw ArgumentError('不支持的消息类型: $msgType');
     }
 
+    // 客户端生成全局唯一 mid（雪花算法）
+    final mid = SnowflakeIdGenerator().generate();
+
     final message = Message(
+      mid: mid,
       fromId: _getCurrentUserId(),
       toId: toId,
       groupId: groupId,
@@ -132,7 +137,11 @@ class MessageServiceImpl implements MessageService {
       throw ArgumentError('不支持的消息类型: $msgType');
     }
 
+    // 客户端生成全局唯一 mid（雪花算法）
+    final mid = SnowflakeIdGenerator().generate();
+
     final message = Message(
+      mid: mid,
       fromId: _getCurrentUserId(),
       toId: 0,
       groupId: groupId,
@@ -358,11 +367,15 @@ class MessageServiceImpl implements MessageService {
         groupId: groupId,
       );
 
-      // 批量发送已读回执到服务端
-      for (final msg in unreadMessages) {
-        if (msg.id != null) {
-          await _readReceiptManager.enqueueReceipt(msg.id!, groupId: groupId);
-        }
+      // 批量发送已读回执到服务端（使用 mid 而非本地 id）
+      final mids = unreadMessages
+          .where((m) => m.mid != null && m.mid! > 0)
+          .map((m) => m.mid!)
+          .toList();
+
+      if (mids.isNotEmpty) {
+        await _readReceiptManager.enqueueBatch(mids);
+        _log.i('已读回执入队完成, mid数量=${mids.length}');
       }
 
       _log.i('会话已读标记完成, targetId=$targetId, 回执数=${unreadMessages.length}');
@@ -496,9 +509,13 @@ class MessageServiceImpl implements MessageService {
     }
 
     final protocolData = message.toProtocolJson();
+    // 携带客户端生成的 mid，服务端用于回包匹配
+    if (message.mid != null) {
+      protocolData['mid'] = message.mid;
+    }
     protocolData['clientId'] = message.id;
 
-    _log.d('正在发送消息, messageId=${message.id}, type=${message.msgType.name}');
+    _log.d('正在发送消息, mid=${message.mid}, id=${message.id}, type=${message.msgType.name}');
     _connectionManager.sendMessage(protocolData);
 
     final sentMessage = message.copyWith(status: MessageStatus.sent);

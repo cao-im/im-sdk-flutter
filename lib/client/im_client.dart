@@ -702,6 +702,8 @@ class IMClient {
       });
     } else if (type == 'read_receipt') {
       _handleReadReceipt(data);
+    } else if (type == 'send_confirmation') {
+      _handleSendConfirmation(data);
     } else if (type == 'recall_message') {
       _handleRecalledMessage(data);
     } else if (type == 'pong') {
@@ -790,6 +792,53 @@ class IMClient {
       }
     } catch (e) {
       _log.e('处理消息撤回通知失败', error: e);
+    }
+  }
+
+  /// 处理服务端发送确认：用 mid 匹配本地消息，更新状态为已送达/已发送
+  void _handleSendConfirmation(Map<String, dynamic> data) {
+    try {
+      final mid = data['mid'] ?? data['messageId'];
+      final serverId = data['id'];
+      final statusStr = data['status'] ?? 'sent';
+      _log.i('📤 [IMClient] 收到 send_confirmation, mid=$mid, serverId=$serverId, status=$statusStr');
+
+      if (mid == null) return;
+
+      // 用 mid 查找本地消息并更新
+      _storage.getMessageByMid(mid).then((localMessage) async {
+        if (localMessage == null) {
+          _log.w('⚠️ [IMClient] 未找到 mid=$mid 对应的本地消息');
+          return;
+        }
+
+        // 更新消息状态
+        MessageStatus newStatus;
+        switch (statusStr) {
+          case 'delivered':
+            newStatus = MessageStatus.delivered;
+          case 'read':
+            newStatus = MessageStatus.read;
+          case 'failed':
+            newStatus = MessageStatus.failed;
+          default:
+            newStatus = MessageStatus.sent;
+        }
+
+        // 更新本地记录：状态 + 服务端ID
+        final updatedMessage = localMessage.copyWith(
+          id: serverId ?? localMessage.id,
+          status: newStatus,
+        );
+        await _storage.updateMessage(updatedMessage);
+
+        _log.i('✅ [IMClient] 消息确认更新成功: mid=$mid, status=${newStatus.name}');
+        _eventBus.fire(MessageSentEvent(message: updatedMessage));
+      }).catchError((e) {
+        _log.e('❌ [IMClient] 处理 send_confirmation 失败', error: e);
+      });
+    } catch (e) {
+      _log.e('处理发送确认失败', error: e);
     }
   }
 
@@ -1147,7 +1196,13 @@ class _FallbackStorage implements StorageInterface {
   Future<Message?> getMessageById(int messageId) async => null;
 
   @override
+  Future<Message?> getMessageByMid(int mid) async => null;
+
+  @override
   Future<void> updateMessageStatus(int messageId, MessageStatus status) async {}
+
+  @override
+  Future<void> updateMessage(Message message) async {}
 
   @override
   Future<void> updateMessageContent(int messageId, String content, MessageStatus status) async {}

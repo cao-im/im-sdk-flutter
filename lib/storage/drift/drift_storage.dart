@@ -49,6 +49,7 @@ class DriftStorage implements StorageInterface {
   @override
   Future<int> insertMessage(model.Message message) async {
     final messageCompanion = MessagesCompanion.insert(
+      mid: Value(message.mid ?? 0),
       fromId: message.fromId,
       toId: message.toId,
       groupId: Value(message.groupId),
@@ -126,6 +127,27 @@ class DriftStorage implements StorageInterface {
       int messageId, model.MessageStatus status) async {
     await (_db.update(_db.messages)..where((tbl) => tbl.id.equals(messageId)))
         .write(MessagesCompanion(status: Value(status.value)));
+  }
+
+  @override
+  Future<model.Message?> getMessageByMid(int mid) async {
+    final row = await (_db.select(_db.messages)
+          ..where((tbl) => tbl.mid.equals(mid)))
+        .getSingleOrNull();
+
+    if (row == null) return null;
+    return _toMessage(row);
+  }
+
+  @override
+  Future<void> updateMessage(model.Message message) async {
+    if (message.id == null) return;
+    await (_db.update(_db.messages)..where((tbl) => tbl.id.equals(message.id!)))
+        .write(MessagesCompanion(
+              id: Value(message.id!),
+              mid: Value(message.mid ?? 0),
+              status: Value(message.status.value),
+            ));
   }
 
   @override
@@ -282,6 +304,7 @@ class DriftStorage implements StorageInterface {
   model.Message _toMessage(Message row) {
     return model.Message(
       id: row.id,
+      mid: row.mid,
       fromId: row.fromId,
       toId: row.toId,
       groupId: row.groupId,

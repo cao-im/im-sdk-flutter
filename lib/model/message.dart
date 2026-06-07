@@ -38,6 +38,8 @@ enum MessageStatus {
 
 class Message {
   final int? id;
+  /// 消息全局唯一ID（客户端生成，雪花算法），0表示未分配
+  final int? mid;
   final int fromId;
   final int toId;
   final int? groupId;
@@ -51,6 +53,7 @@ class Message {
 
   Message({
     this.id,
+    this.mid,
     required this.fromId,
     required this.toId,
     this.groupId,
@@ -67,6 +70,7 @@ class Message {
     print('📥 [Message.fromJson] 原始JSON: $json');
     return Message(
       id: json['id'],
+      mid: json['mid'],
       fromId: json['fromId'] ?? 0,
       toId: json['toId'] ?? 0,
       groupId: json['groupId'],
@@ -87,6 +91,7 @@ class Message {
   Map<String, dynamic> toJson() {
     final json = {
       'id': id,
+      'mid': mid,
       'fromId': fromId,
       'toId': toId,
       'groupId': groupId,
@@ -108,6 +113,7 @@ class Message {
       'toId': groupId ?? toId,
       'content': content,
       'msgType': msgType.value,
+      if (mid != null) 'mid': mid,
     };
     print('📤 [Message.toProtocolJson] $json');
     return json;
@@ -115,6 +121,7 @@ class Message {
 
   Message copyWith({
     int? id,
+    int? mid,
     int? fromId,
     int? toId,
     int? groupId,
@@ -128,6 +135,7 @@ class Message {
   }) {
     return Message(
       id: id ?? this.id,
+      mid: mid ?? this.mid,
       fromId: fromId ?? this.fromId,
       toId: toId ?? this.toId,
       groupId: groupId ?? this.groupId,
@@ -143,7 +151,7 @@ class Message {
 
   @override
   String toString() {
-    return 'Message{id: $id, fromId: $fromId, toId: $toId, content: $content, type: ${msgType.name}, status: ${status.name}}';
+    return 'Message{id: $id, mid: $mid, fromId: $fromId, toId: $toId, content: $content, type: ${msgType.name}, status: ${status.name}}';
   }
 
   @override
@@ -151,7 +159,7 @@ class Message {
       identical(this, other) ||
       other is Message &&
           runtimeType == other.runtimeType &&
-          id == other.id &&
+          mid == other.mid &&
           fromId == other.fromId &&
           toId == other.toId &&
           groupId == other.groupId &&
@@ -159,7 +167,7 @@ class Message {
 
   @override
   int get hashCode =>
-      id.hashCode ^
+      mid.hashCode ^
       fromId.hashCode ^
       toId.hashCode ^
       (groupId?.hashCode ?? 0) ^

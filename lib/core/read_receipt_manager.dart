@@ -94,10 +94,10 @@ class ReadReceiptManager {
       if (_connectionManager.isConnected) {
         _connectionManager.sendMessage({
           'type': 'read_receipt',
-          'messageIds': messageIds,
+          'mids': messageIds,
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         });
-        _log.i('✅ 已读回执批量发送成功, 数量=${messageIds.length}, IDs=$messageIds');
+        _log.i('✅ 已读回执批量发送成功, 数量=${messageIds.length}, mids=$messageIds');
       } else {
         // 网络未连接，重新放回缓存队列（等待重连后补发）
         _log.w('📴 网络未连接，已读回执已缓存 (${messageIds.length}条), 等待重连后补发...');
@@ -144,7 +144,7 @@ class ReadReceiptManager {
         if (_connectionManager.isConnected) {
           _connectionManager.sendMessage({
             'type': 'read_receipt',
-            'messageIds': batch,
+            'mids': batch,
             'timestamp': DateTime.now().millisecondsSinceEpoch,
             'flush': true, // 标记这是补发的回执
           });
