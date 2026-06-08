@@ -129,6 +129,42 @@ class WebStorage implements StorageInterface {
   }
 
   @override
+  Future<Message?> getMessageByMid(int mid) async {
+    final prefs = await _preferences;
+    final messages = _getMessagesList(prefs);
+
+    final messageMap = messages.where((m) => m['mid'] == mid).toList();
+    if (messageMap.isNotEmpty) {
+      return _mapToMessage(messageMap.first);
+    }
+    return null;
+  }
+
+  @override
+  Future<void> updateMessage(Message message) async {
+    final prefs = await _preferences;
+    final messages = _getMessagesList(prefs);
+
+    final index = messages.indexWhere((m) => m['id'] == message.id);
+    if (index != -1) {
+      messages[index] = _messageToMap(message);
+      await _saveMessagesList(prefs, messages);
+    }
+  }
+
+  @override
+  Future<void> updateMessageDelivered(int mid) async {
+    final prefs = await _preferences;
+    final messages = _getMessagesList(prefs);
+
+    final index = messages.indexWhere((m) => m['mid'] == mid);
+    if (index != -1) {
+      messages[index]['delivered'] = 1;
+      await _saveMessagesList(prefs, messages);
+    }
+  }
+
+  @override
   Future<void> updateMessageStatus(int messageId, MessageStatus status) async {
     final prefs = await _preferences;
     final messages = _getMessagesList(prefs);
@@ -270,12 +306,14 @@ class WebStorage implements StorageInterface {
   Map<String, dynamic> _messageToMap(Message message) {
     return {
       'id': message.id,
+      'mid': message.mid,
       'from_id': message.fromId,
       'to_id': message.toId,
       'group_id': message.groupId,
       'content': message.content,
       'msg_type': message.msgType.value,
       'status': message.status.value,
+      'delivered': message.delivered ? 1 : 0,
       'timestamp': message.timestamp,
       'local_path': message.localPath,
     };
@@ -284,12 +322,14 @@ class WebStorage implements StorageInterface {
   Message _mapToMessage(Map<String, dynamic> map) {
     return Message.fromJson({
       'id': map['id'],
+      'mid': map['mid'],
       'fromId': map['from_id'],
       'toId': map['to_id'],
       'groupId': map['group_id'],
       'content': map['content'],
       'msgType': map['msg_type'],
       'status': map['status'],
+      'delivered': (map['delivered'] as int? ?? 0) == 1,
       'timestamp': map['timestamp'],
       'localPath': map['local_path'],
     });

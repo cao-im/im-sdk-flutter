@@ -122,11 +122,32 @@ class ApiStorage implements StorageInterface {
   Future<model.Message?> getMessageById(int messageId) async {
     final result = await _request('GET', '/messages/$messageId');
     final Map<String, dynamic>? json = result['data'];
-    
+
     if (json != null && json.isNotEmpty) {
       return model.Message.fromJson(json);
     }
     return null;
+  }
+
+  @override
+  Future<model.Message?> getMessageByMid(int mid) async {
+    final result = await _request('GET', '/messages/mid/$mid');
+    final Map<String, dynamic>? json = result['data'];
+
+    if (json != null && json.isNotEmpty) {
+      return model.Message.fromJson(json);
+    }
+    return null;
+  }
+
+  @override
+  Future<void> updateMessage(model.Message message) async {
+    await _request('PUT', '/messages/${message.id}', data: message.toJson());
+  }
+
+  @override
+  Future<void> updateMessageDelivered(int mid) async {
+    await _request('PUT', '/messages/delivered/$mid');
   }
 
   @override
