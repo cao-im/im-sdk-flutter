@@ -11,6 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   web_socket_channel: ^2.4.0
+  wakelock_plus: ^1.2.8
 
   # ====== 本地存储：Drift (SQLite ORM) 方案 ======
   drift: ^2.33.0

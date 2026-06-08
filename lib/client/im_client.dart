@@ -3,6 +3,7 @@ import 'dart:async';
 import '../core/connection_manager.dart';
 import '../core/connection_status.dart';
 import '../core/hybrid_message_sync.dart';
+import '../core/keep_alive_manager.dart';
 import '../core/reconnect.dart';
 import '../core/token_manager.dart';
 import '../event/event_bus.dart';
@@ -109,6 +110,9 @@ class IMClient {
 
   /// 已读回执管理器（支持断网缓存+重连补发）
   ReadReceiptManager? _readReceiptManager;
+
+  /// 进程保活管理器（Android前台服务 + iOS Audio Session + Wakelock）
+  KeepAliveManager? _keepAliveManager;
 
   final List<MessageListener> _messageListeners = [];
   final List<ConnectionListener> _connectionListeners = [];
@@ -304,6 +308,9 @@ class IMClient {
       await _connectionManager.connect(serverUrl, token);
       print('✅[IMClient] ConnectionManager.connect() 返回成功');
 
+      // 🛡️ 连接成功后启动进程保活（前台服务/Audio Session/Wakelock）
+      _startKeepAlive();
+
       if (currentUserId != null) {
         print('📍[IMClient] 初始化 HybridSync (微信模式)...');
         _initHybridSync();
@@ -336,6 +343,8 @@ class IMClient {
           },
           onReconnectSuccess: () {
             print('✅[IMClient] ReconnectManager 重连成功回调');
+            // 🛡️ 重连成功后重新启动保活
+            _startKeepAlive();
             if (_hybridSync != null) {
               _hybridSync!.start();
               _hybridSync!.syncNow();
@@ -378,6 +387,7 @@ class IMClient {
   }
 
   Future<void> disconnect() async {
+    _stopKeepAlive();
     _stopHybridSync();
     _reconnectManager?.cancel();
     _connectionManager.disconnect();
@@ -425,6 +435,8 @@ class IMClient {
       await _connectionManager.connect(serverUrl, token);
 
       print('✅[IMClient] 手动重连成功');
+      // 🛡️ 手动重连成功后重新启动保活
+      _startKeepAlive();
       if (currentUserId != null) {
         if (_hybridSync != null) {
           _hybridSync!.start();
@@ -1028,6 +1040,10 @@ class IMClient {
     _readReceiptManager?.dispose();
     _readReceiptManager = null;
 
+    // 🗑️ 清理保活管理器
+    _keepAliveManager?.dispose();
+    _keepAliveManager = null;
+
     _reconnectManager = null;
     await disconnect();
     _connectionManager.dispose();
@@ -1112,9 +1128,36 @@ class IMClient {
     return _readReceiptManager?.getDebugInfo() ?? {'status': '未初始化'};
   }
 
+  /// 🛡️ 获取保活管理器调试信息
+  Map<String, dynamic> getKeepAliveDebugInfo() {
+    return _keepAliveManager?.getDebugInfo() ?? {'status': '未初始化'};
+  }
+
+  /// 🛡️ 保活是否正在运行
+  bool get isKeepAliveActive => _keepAliveManager?.isActive ?? false;
+
   void _stopHybridSync() {
     _hybridSync?.stop();
     _log.i('混合消息同步已停止');
+  }
+
+  /// 🛡️ 启动进程保活（Android前台服务 + iOS Audio Session + Wakelock）
+  void _startKeepAlive() {
+    _keepAliveManager ??= KeepAliveManager();
+    _keepAliveManager!.start().then((success) {
+      if (success) {
+        _log.i('🛡️ 进程保活已启动');
+      } else {
+        _log.w('⚠️ 进程保活启动失败，APP可能在后台被系统杀死');
+      }
+    });
+  }
+
+  /// 🛡️ 停止进程保活
+  void _stopKeepAlive() {
+    _keepAliveManager?.stop().then((_) {
+      _log.i('🛡️ 进程保活已停止');
+    });
   }
 
   Future<void> _updateConversationFromMessage(Message message) async {
