@@ -211,7 +211,7 @@ class OfflineMessageSync {
       _log.i('🌐 HTTP请求地址: $httpBaseUrl/message/offline');
 
       final response = await dio.get(
-        '$httpBaseUrl/message/offline',
+        '$httpBaseUrl/api/message/offline',
         queryParameters: {
           // userId不再传！服务端从JWT Token中提取
           'since': sinceTimestamp,
@@ -230,6 +230,11 @@ class OfflineMessageSync {
 
       if (response.statusCode == 200) {
         final data = response.data;
+
+        if (data == null || data is! Map) {
+          _log.w('⚠️ HTTP返回数据为空或格式异常: $data');
+          return [];
+        }
 
         if (data['code'] == 200 && data['data'] != null) {
           final responseData = data['data'] as Map<String, dynamic>;
@@ -279,6 +284,11 @@ class OfflineMessageSync {
         }
 
         await _dbHelper.insertMessage(message);
+
+        // 离线消息拉取后自动发送送达回执，标记已送达（避免下次重连重复拉取）
+        if (message.mid != null && message.mid! > 0) {
+          _client.sendDeliveryAck(message.mid!);
+        }
 
         for (final listener in _client.messageListeners) {
           listener.onMessageReceived(message);

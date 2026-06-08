@@ -266,13 +266,13 @@ class HybridMessageSync {
       dio.options.receiveTimeout = const Duration(seconds: _requestTimeoutSeconds);
 
       // 将WebSocket URL转换为HTTP REST API URL
-      // 例如: ws://localhost:8080/ws → http://localhost:8080
+      // 例如: ws://localhost:8080/ws → http://localhost:8080/api
       final httpBaseUrl = _convertToHttpUrl(_client.serverUrl);
 
       _log.i('🌐 HTTP请求地址: $httpBaseUrl/message/offline');
 
       final response = await dio.get(
-        '$httpBaseUrl/message/offline',
+        '$httpBaseUrl/api/message/offline',
         queryParameters: {
           // 注意：userId不再需要传！服务端从JWT Token中自动提取
           'since': sinceTimestamp,
@@ -291,6 +291,11 @@ class HybridMessageSync {
 
       if (response.statusCode == 200) {
         final data = response.data;
+
+        if (data == null || data is! Map) {
+          _log.w('⚠️ HTTP返回数据为空或格式异常: statusCode=${response.statusCode}, data=$data, raw=${response.toString()}');
+          return [];
+        }
 
         if (data['code'] == 200 && data['data'] != null) {
           final responseData = data['data'] as Map<String, dynamic>;
@@ -340,6 +345,11 @@ class HybridMessageSync {
         }
 
         await _dbHelper.insertMessage(message);
+
+        // 离线消息拉取后自动发送送达回执，标记已送达（避免下次重连重复拉取）
+        if (message.mid != null && message.mid! > 0) {
+          _client.sendDeliveryAck(message.mid!);
+        }
 
         for (final listener in _client.messageListeners) {
           listener.onMessageReceived(message);

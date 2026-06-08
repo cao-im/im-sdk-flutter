@@ -879,6 +879,11 @@ class IMClient {
     }
   }
 
+  /// 发送送达回执：通知服务端"我已收到这条消息"（供外部调用）
+  void sendDeliveryAck(int mid) {
+    _sendDeliveryAck(mid);
+  }
+
   /// 发送送达回执：通知服务端"我已收到这条消息"
   void _sendDeliveryAck(int mid) {
     try {
