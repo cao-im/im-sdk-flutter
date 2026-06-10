@@ -150,17 +150,21 @@ class HybridMessageSync {
     try {
       _log.i('💡 开始离线消息补拉 (微信模式)...');
 
+      // ① 先同步私聊离线消息（原有逻辑）
       final syncState = await MessageSyncState.getSyncState();
 
       final sinceTimestamp = syncState.lastTimestamp ?? 0;
       final sinceMessageId = syncState.lastMessageId ?? 0;
 
-      _log.i('📋 同步参数: sinceTimestamp=$sinceTimestamp, sinceMessageId=$sinceMessageId');
+      _log.i('📋 私聊同步参数: sinceTimestamp=$sinceTimestamp, sinceMessageId=$sinceMessageId');
 
       await _requestOfflineMessages(
         sinceTimestamp: sinceTimestamp,
         sinceMessageId: sinceMessageId,
       );
+
+      // ② 再同步群聊离线消息（新增）
+      await _syncGroupOfflineMessages();
 
       await MessageSyncState.updateLastSyncTime(DateTime.now().millisecondsSinceEpoch);
 
@@ -199,6 +203,107 @@ class HybridMessageSync {
           _log.i('恢复同步服务');
         }
       });
+    }
+  }
+
+  /// 同步群聊离线消息：遍历已加入的群组，按 sinceMid 增量拉取
+  Future<void> _syncGroupOfflineMessages() async {
+    if (_isDisposed || !_client.isConnected) return;
+
+    try {
+      final userId = _client.currentUserId;
+      if (userId == null) {
+        _log.w('⚠️ 用户未登录，跳过群聊离线同步');
+        return;
+      }
+
+      // ① 通过 HTTP API 获取用户已加入的所有群组（不走 WebSocket 避免超时）
+      final groups = await _fetchUserGroups(userId);
+      if (groups.isEmpty) {
+        _log.d('用户未加入任何群组，跳过群聊离线同步');
+        return;
+      }
+
+      _log.i('💬 开始群聊离线消息补拉, 共 ${groups.length} 个群组');
+
+      for (final group in groups) {
+        if (_isDisposed || !_client.isConnected) break;
+
+        final groupId = group['id'] ?? group['groupId'];
+        if (groupId == null) continue;
+        final groupIdInt = groupId is int ? groupId : int.tryParse(groupId.toString()) ?? 0;
+        if (groupIdInt <= 0) continue;
+
+        // ② 查询本地该群的最后一条消息 mid
+        int sinceMid = 0;
+        try {
+          final lastMsg = await _dbHelper.getLastMessage(0, groupId: groupIdInt);
+          if (lastMsg != null && lastMsg.mid != null && lastMsg.mid! > 0) {
+            sinceMid = lastMsg.mid!;
+          }
+        } catch (e) {
+          _log.w('查询群$groupIdInt 本地最后消息失败: $e');
+        }
+
+        _log.i('📋 群聊离线同步: groupId=$groupIdInt, sinceMid=$sinceMid');
+
+        // ③ 发送 WebSocket 请求（响应由 IMClient._handleIncomingMessage 统一处理）
+        try {
+          _client.connectionManager.sendMessage({
+            'type': 'group_offline_sync',
+            'groupId': groupIdInt,
+            'sinceMid': sinceMid,
+            'limit': _batchSize,
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+          });
+
+          // 等待一小段时间，避免请求过于密集
+          await Future.delayed(const Duration(milliseconds: 100));
+        } catch (e) {
+          _log.w('发送群$groupIdInt 离线同步请求失败: $e');
+        }
+      }
+
+      _log.i('✅ 群聊离线消息补拉请求已全部发出');
+    } catch (e) {
+      _log.e('群聊离线消息同步异常（非致命）: $e');
+      // 不影响私聊离线同步结果，静默忽略
+    }
+  }
+
+  /// 通过 HTTP API 获取用户已加入的群组列表
+  Future<List<Map<String, dynamic>>> _fetchUserGroups(int userId) async {
+    try {
+      final dio = Dio();
+      dio.options.connectTimeout = const Duration(seconds: 10);
+      dio.options.receiveTimeout = const Duration(seconds: 10);
+
+      final httpBaseUrl = _convertToHttpUrl(_client.serverUrl);
+
+      final response = await dio.get(
+        '$httpBaseUrl/api/group/list',
+        queryParameters: {'userId': userId},
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer ${_client.token}',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data is Map) {
+        final data = response.data as Map<String, dynamic>;
+        if (data['code'] == 200 && data['data'] != null) {
+          final list = data['data'];
+          if (list is List) {
+            return list.cast<Map<String, dynamic>>();
+          }
+        }
+      }
+      return [];
+    } catch (e) {
+      _log.w('HTTP 获取用户群组列表失败（非致命）: $e');
+      return [];
     }
   }
 

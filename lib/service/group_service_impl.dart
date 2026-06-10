@@ -43,7 +43,10 @@ class GroupServiceImpl implements GroupService {
 
   void _handleServerMessage(Map<String, dynamic> message) {
     final type = message['type'] as String? ?? '';
+    // 只拦截群组信息响应（包含 name/id 等字段），不拦截消息类响应（group_message/group_history/group_offline_sync）
+    final isGroupInfoResponse = message.containsKey('name') || message.containsKey('memberIds');
     if (type.startsWith('group_') &&
+        isGroupInfoResponse &&
         _pendingResponse != null &&
         !_pendingResponse!.isCompleted) {
       _pendingResponse!.complete(message);

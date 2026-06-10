@@ -741,6 +741,9 @@ class IMClient {
       _handleFriendRejected(data);
     } else if (type == 'offline_messages') {
       _handleOfflineMessages(data);
+    } else if (type == 'group_offline_sync') {
+      // ✅ 群聊离线消息同步响应：逐条处理，与实时 group_message 走相同链路
+      _handleGroupOfflineSyncResponse(data);
     } else if (type == 'group_history' || type == 'private_history') {
       // ✅ 历史消息响应：提取其中的群组信息并缓存（解决启动时群名称不显示的问题）
       _cacheGroupInfoFromHistoryMessages(data);
@@ -775,6 +778,76 @@ class IMClient {
       }
     } catch (e) {
       _log.w('[IMClient] 从历史消息中提取群组信息失败（非致命）: $e');
+    }
+  }
+
+  /// 处理群聊离线消息同步响应：批量处理，避免逐条触发事件导致竞态条件
+  void _handleGroupOfflineSyncResponse(Map<String, dynamic> data) {
+    try {
+      final messages = data['messages'];
+      if (messages is! List || messages.isEmpty) return;
+
+      final groupId = data['groupId'];
+      final groupIdInt = groupId is int ? groupId : int.tryParse(groupId.toString()) ?? 0;
+      _log.i('📥 [IMClient] 收到群聊离线同步响应: groupId=$groupIdInt, 消息数=${messages.length}');
+
+      Message? lastMessage;
+      int successCount = 0;
+
+      for (final msgData in messages) {
+        if (msgData is! Map<String, dynamic>) continue;
+
+        try {
+          final message = Message.fromJson(msgData);
+
+          // 缓存群组信息
+          if (message.groupId != null && message.groupId! > 0 && message.groupInfo != null) {
+            _groupService.cacheGroupFromInfo(message.groupInfo!);
+          }
+
+          // 存入本地存储（去重）
+          _storage.insertMessage(message).then((_) {
+            // 只通知聊天页面的 listener（用于增量显示消息列表），不触发 EventBus
+            for (var listener in _messageListeners) {
+              listener.onMessageReceived(message);
+            }
+
+            // 发送送达回执
+            if (message.mid != null && message.mid! > 0 && currentUserId != null) {
+              _sendDeliveryAck(message.mid!);
+            }
+          }).catchError((e) {
+            // 存储失败也通知 UI
+            for (var listener in _messageListeners) {
+              listener.onMessageReceived(message);
+            }
+          });
+
+          lastMessage = message;
+          successCount++;
+        } catch (e) {
+          _log.w('[IMClient] 处理单条群聊离线消息失败（非致命）: $e');
+        }
+      }
+
+      // ✅ 批量处理完成后，只做一次会话更新（避免多次 loadConversations 竞态）
+      if (lastMessage != null && successCount > 0) {
+        _log.i('✅ [IMClient] 群聊离线消息同步处理完成: 成功$successCount条, 统一会话更新');
+        _updateConversationFromMessage(lastMessage!, extraUnreadCount: successCount - 1);
+
+        // 触发一次会话列表刷新（让 ChatProvider 更新未读数和 lastMessage）
+        _eventBus.fire(ConversationUpdatedEvent(conversation: Conversation(
+          id: -1,
+          userId: currentUserId ?? 0,
+          targetType: TargetType.group,
+          targetId: groupIdInt,
+          unreadCount: successCount,
+        )));
+      } else {
+        _log.i('✅ [IMClient] 群聊离线消息同步处理完成（无新消息）');
+      }
+    } catch (e) {
+      _log.e('[IMClient] 处理群聊离线同步响应失败: $e', error: e);
     }
   }
 
@@ -1200,7 +1273,7 @@ class IMClient {
     });
   }
 
-  Future<void> _updateConversationFromMessage(Message message) async {
+  Future<void> _updateConversationFromMessage(Message message, {int extraUnreadCount = 0}) async {
     if (currentUserId == null) return;
 
     final isPrivate = message.groupId == null;
@@ -1217,12 +1290,12 @@ class IMClient {
             targetId: targetId,
           );
 
+      final totalIncrement = (message.fromId != currentUserId ? 1 : 0) + extraUnreadCount;
+
       final updatedConversation = existingConversation.copyWith(
         lastMessage: message,
         updateTime: DateTime.now().millisecondsSinceEpoch,
-        unreadCount: message.fromId != currentUserId
-            ? existingConversation.unreadCount + 1
-            : existingConversation.unreadCount,
+        unreadCount: existingConversation.unreadCount + totalIncrement,
       );
 
       if (existingConversation.id != null) {
@@ -1231,10 +1304,10 @@ class IMClient {
           message,
         );
 
-        if (message.fromId != currentUserId) {
+        if (totalIncrement > 0) {
           await _conversationService.incrementUnreadCount(
             existingConversation.id!,
-            count: 1,
+            count: totalIncrement,
           );
         }
       }
