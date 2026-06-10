@@ -1,4 +1,5 @@
 import '../model/group.dart';
+import '../model/sender_info.dart';
 
 abstract class GroupService {
   Future<Group> createGroup({
@@ -27,4 +28,7 @@ abstract class GroupService {
     String? name,
     String? avatar,
   });
+
+  /// 根据消息中的 groupInfo 缓存群组信息（避免重复请求服务端）
+  void cacheGroupFromInfo(GroupInfo groupInfo);
 }

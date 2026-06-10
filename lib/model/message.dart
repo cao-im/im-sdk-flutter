@@ -115,7 +115,8 @@ class Message {
   Map<String, dynamic> toProtocolJson() {
     final json = {
       'type': groupId != null ? 'group' : 'private',
-      'toId': groupId ?? toId,
+      'toId': toId,
+      if (groupId != null) 'groupId': groupId,  // 群聊时单独传 groupId 字段
       'content': content,
       'msgType': msgType.value,
       if (mid != null) 'mid': mid,

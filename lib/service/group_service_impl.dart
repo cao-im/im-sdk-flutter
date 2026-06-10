@@ -6,6 +6,7 @@ import '../core/exceptions.dart';
 import '../event/event_bus.dart';
 import '../event/im_event.dart';
 import '../model/group.dart';
+import '../model/sender_info.dart';
 import '../storage/storage_interface.dart';
 import '../utils/logger.dart';
 import 'group_service.dart';
@@ -524,6 +525,26 @@ class GroupServiceImpl implements GroupService {
     await _cacheGroupLocally(updatedGroup);
 
     return updatedGroup;
+  }
+
+  @override
+  void cacheGroupFromInfo(GroupInfo groupInfo) {
+    final groupId = groupInfo.groupId;
+    if (groupId <= 0 || groupInfo.groupName.isEmpty) return;
+
+    // 如果缓存中已存在且名称非空，不覆盖（已有更完整的信息）
+    final existing = _groupCache[groupId];
+    if (existing != null && existing.name.isNotEmpty) return;
+
+    final group = Group(
+      id: groupId,
+      name: groupInfo.groupName,
+      avatar: groupInfo.groupAvatar,
+      ownerId: 0, // groupInfo 中没有 ownerId，后续可通过 getGroup 获取完整信息
+      memberCount: 0,
+    );
+    _groupCache[groupId] = group;
+    _log.d('群组信息已从消息中缓存: groupId=$groupId, name=${groupInfo.groupName}');
   }
 
   void clearCache() {

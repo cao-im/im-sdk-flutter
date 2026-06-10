@@ -690,10 +690,15 @@ class IMClient {
     final type = data['type'];
     _log.i('📡 [IMClient._handleIncomingMessage] 收到服务端消息, type=$type, data=$data');
 
-    if (type == 'message' || type == 'private_message') {
+    if (type == 'message' || type == 'private_message' || type == 'group_message') {
       final messageData = data['data'] as Map<String, dynamic>? ?? data;
       _log.i('📡 [IMClient] 解析消息数据: $messageData');
       final message = Message.fromJson(messageData);
+
+      // ✅ 群聊消息：利用消息中的 groupInfo 缓存群组信息（避免后续 getGroup 请求失败）
+      if (message.groupId != null && message.groupId! > 0 && message.groupInfo != null) {
+        _groupService.cacheGroupFromInfo(message.groupInfo!);
+      }
 
       // ✅ 先保存到本地存储（确保数据持久化）
       _storage.insertMessage(message).then((_) {
