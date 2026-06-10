@@ -115,12 +115,13 @@ class DriftStorage implements StorageInterface {
 
   @override
   Future<model.Message?> getMessageById(int messageId) async {
-    final row = await (_db.select(_db.messages)
-          ..where((tbl) => tbl.id.equals(messageId)))
-        .getSingleOrNull();
+    final rows = await (_db.select(_db.messages)
+          ..where((tbl) => tbl.id.equals(messageId))
+          ..limit(1))
+        .get();
 
-    if (row == null) return null;
-    return _toMessage(row);
+    if (rows.isEmpty) return null;
+    return _toMessage(rows.first);
   }
 
   @override
@@ -132,12 +133,13 @@ class DriftStorage implements StorageInterface {
 
   @override
   Future<model.Message?> getMessageByMid(int mid) async {
-    final row = await (_db.select(_db.messages)
-          ..where((tbl) => tbl.mid.equals(mid)))
-        .getSingleOrNull();
+    final rows = await (_db.select(_db.messages)
+          ..where((tbl) => tbl.mid.equals(mid))
+          ..limit(1))
+        .get();
 
-    if (row == null) return null;
-    return _toMessage(row);
+    if (rows.isEmpty) return null;
+    return _toMessage(rows.first);
   }
 
   @override
