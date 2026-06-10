@@ -547,6 +547,11 @@ class GroupServiceImpl implements GroupService {
     _log.d('群组信息已从消息中缓存: groupId=$groupId, name=${groupInfo.groupName}');
   }
 
+  @override
+  Group? getFromCache(int groupId) {
+    return _groupCache[groupId];
+  }
+
   void clearCache() {
     _groupCache.clear();
   }

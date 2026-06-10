@@ -31,4 +31,7 @@ abstract class GroupService {
 
   /// 根据消息中的 groupInfo 缓存群组信息（避免重复请求服务端）
   void cacheGroupFromInfo(GroupInfo groupInfo);
+
+  /// 从缓存中获取群组信息（同步，无网络请求），未找到返回 null
+  Group? getFromCache(int groupId);
 }

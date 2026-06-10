@@ -10,6 +10,7 @@ import '../event/event_bus.dart';
 import '../event/event_listener.dart';
 import '../event/im_event.dart';
 import '../model/message.dart';
+import '../model/sender_info.dart';
 import '../model/conversation.dart';
 import '../model/group.dart';
 import '../model/user.dart';
@@ -740,6 +741,40 @@ class IMClient {
       _handleFriendRejected(data);
     } else if (type == 'offline_messages') {
       _handleOfflineMessages(data);
+    } else if (type == 'group_history' || type == 'private_history') {
+      // ✅ 历史消息响应：提取其中的群组信息并缓存（解决启动时群名称不显示的问题）
+      _cacheGroupInfoFromHistoryMessages(data);
+    }
+  }
+
+  /// 从历史消息响应中提取群组信息并缓存（解决启动时 getGroup 失败导致群名称不显示的问题）
+  void _cacheGroupInfoFromHistoryMessages(Map<String, dynamic> data) {
+    try {
+      final messages = data['messages'];
+      if (messages is! List || messages.isEmpty) return;
+
+      bool cachedAny = false;
+      for (final msg in messages) {
+        if (msg is! Map<String, dynamic>) continue;
+        final groupInfoData = msg['groupInfo'];
+        if (groupInfoData is! Map<String, dynamic>) continue;
+
+        final groupInfo = GroupInfo.fromJson(groupInfoData);
+        if (groupInfo.groupId > 0 && groupInfo.groupName.isNotEmpty) {
+          _groupService.cacheGroupFromInfo(groupInfo);
+          cachedAny = true;
+        }
+      }
+      if (cachedAny) {
+        _log.i('✅ [IMClient] 已从历史消息中提取并缓存群组信息，触发会话列表刷新');
+        // 触发刷新，让 ChatProvider.loadConversations() 重新获取时能从缓存读到群名称
+        _eventBus.fire(ConversationUpdatedEvent(conversation: Conversation(
+          id: -1, userId: currentUserId ?? 0, targetType: TargetType.group,
+          targetId: 0, unreadCount: 0,
+        )));
+      }
+    } catch (e) {
+      _log.w('[IMClient] 从历史消息中提取群组信息失败（非致命）: $e');
     }
   }
 
