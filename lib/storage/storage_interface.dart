@@ -16,6 +16,9 @@ abstract class StorageInterface {
 
   Future<Message?> getLastMessage(int targetId, {int? groupId});
 
+  /// 查询指定群组中消息的最大 seq（用于离线增量同步的 sinceSeq 基准）
+  Future<int?> getMaxSeq(int groupId);
+
   Future<Message?> getMessageById(int messageId);
 
   /// 根据 mid（客户端生成的全局唯一ID）查找消息

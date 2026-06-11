@@ -234,15 +234,16 @@ class HybridMessageSync {
         final groupIdInt = groupId is int ? groupId : int.tryParse(groupId.toString()) ?? 0;
         if (groupIdInt <= 0) continue;
 
-        // ② 查询本地该群的最后一条消息 seq（服务端序号，严格递增）
+        // ② 查询本地该群的最大 seq（服务端序号，严格递增）
+        // 使用 MAX(seq) 而非最后一条消息的 seq，因为本地先存的消息 seq 可能为 NULL
         int sinceSeq = 0;
         try {
-          final lastMsg = await _dbHelper.getLastMessage(0, groupId: groupIdInt);
-          if (lastMsg != null && lastMsg.seq != null && lastMsg.seq! > 0) {
-            sinceSeq = lastMsg.seq!;
+          final maxSeq = await _dbHelper.getMaxSeq(groupIdInt);
+          if (maxSeq != null && maxSeq > 0) {
+            sinceSeq = maxSeq;
           }
         } catch (e) {
-          _log.w('查询群$groupIdInt 本地最后消息失败: $e');
+          _log.w('查询群$groupIdInt 最大seq失败: $e');
         }
 
         _log.i('📋 群聊离线同步: groupId=$groupIdInt, sinceSeq=$sinceSeq');

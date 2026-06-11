@@ -119,6 +119,16 @@ class ApiStorage implements StorageInterface {
   }
 
   @override
+  Future<int?> getMaxSeq(int groupId) async {
+    final result = await _request('GET', '/messages/max-seq?groupId=$groupId');
+    final Map<String, dynamic>? json = result['data'];
+    if (json != null && json['maxSeq'] != null) {
+      return json['maxSeq'] as int;
+    }
+    return null;
+  }
+
+  @override
   Future<model.Message?> getMessageById(int messageId) async {
     final result = await _request('GET', '/messages/$messageId');
     final Map<String, dynamic>? json = result['data'];

@@ -933,8 +933,9 @@ class IMClient {
     try {
       final mid = data['mid'] ?? data['messageId'];
       final serverId = data['id'];
+      final serverSeq = data['seq'];  // 服务端生成的雪花序号
       final statusStr = data['status'] ?? 'sent';
-      _log.i('📤 [IMClient] 收到 send_confirmation, mid=$mid, serverId=$serverId, status=$statusStr');
+      _log.i('📤 [IMClient] 收到 send_confirmation, mid=$mid, serverId=$serverId, seq=$serverSeq, status=$statusStr');
 
       if (mid == null) return;
 
@@ -958,14 +959,16 @@ class IMClient {
             newStatus = MessageStatus.sent;
         }
 
-        // 更新本地记录：状态 + 服务端ID
+        // 更新本地记录：服务端ID + 服务端seq + 状态
+        // （seq 是服务端雪花ID，用于离线增量同步的基准，必须写回本地）
         final updatedMessage = localMessage.copyWith(
           id: serverId ?? localMessage.id,
+          seq: serverSeq ?? localMessage.seq,
           status: newStatus,
         );
         await _storage.updateMessage(updatedMessage);
 
-        _log.i('✅ [IMClient] 消息确认更新成功: mid=$mid, status=${newStatus.name}');
+        _log.i('✅ [IMClient] 消息确认更新成功: mid=$mid, seq=$serverSeq, status=${newStatus.name}');
         _eventBus.fire(MessageSentEvent(message: updatedMessage));
       }).catchError((e) {
         _log.e('❌ [IMClient] 处理 send_confirmation 失败', error: e);
@@ -1409,6 +1412,9 @@ class _FallbackStorage implements StorageInterface {
 
   @override
   Future<Message?> getLastMessage(int targetId, {int? groupId}) async => null;
+
+  @override
+  Future<int?> getMaxSeq(int groupId) async => null;
 
   @override
   Future<Message?> getMessageById(int messageId) async => null;

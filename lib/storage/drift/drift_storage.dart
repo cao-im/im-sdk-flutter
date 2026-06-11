@@ -115,6 +115,27 @@ class DriftStorage implements StorageInterface {
   }
 
   @override
+  Future<int?> getMaxSeq(int groupId) async {
+    // 查询该群所有消息中 seq 的最大值（忽略 NULL）
+    final rows = await (_db.selectOnly(_db.messages)
+          ..addColumns([_db.messages.seq])
+          ..where(_db.messages.groupId.equals(groupId))
+          ..where(_db.messages.seq.isNotNull()))
+        .get();
+
+    if (rows.isEmpty) return null;
+
+    int? maxSeq;
+    for (final row in rows) {
+      final s = row.read(_db.messages.seq);
+      if (s != null && (maxSeq == null || s > maxSeq)) {
+        maxSeq = s;
+      }
+    }
+    return maxSeq;
+  }
+
+  @override
   Future<model.Message?> getMessageById(int messageId) async {
     final rows = await (_db.select(_db.messages)
           ..where((tbl) => tbl.id.equals(messageId))
@@ -145,11 +166,12 @@ class DriftStorage implements StorageInterface {
 
   @override
   Future<void> updateMessage(model.Message message) async {
-    if (message.id == null) return;
-    await (_db.update(_db.messages)..where((tbl) => tbl.id.equals(message.id!)))
+    // 使用 mid 作为匹配条件（mid 是稳定的，而 id 在 send_confirmation 后会从本地ID变为服务端ID）
+    if (message.mid == null || message.mid == 0) return;
+    await (_db.update(_db.messages)..where((tbl) => tbl.mid.equals(message.mid!)))
         .write(MessagesCompanion(
-              id: Value(message.id!),
-              mid: Value(message.mid ?? 0),
+              id: message.id != null ? Value(message.id!) : const Value.absent(),
+              seq: Value(message.seq),
               status: Value(message.status.value),
               delivered: Value(message.delivered),
             ));

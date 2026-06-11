@@ -117,6 +117,25 @@ class WebStorage implements StorageInterface {
   }
 
   @override
+  Future<int?> getMaxSeq(int groupId) async {
+    final prefs = await _preferences;
+    final messages = _getMessagesList(prefs)
+        .where((m) => m['group_id'] == groupId && m['seq'] != null)
+        .toList();
+
+    if (messages.isEmpty) return null;
+
+    int? maxSeq;
+    for (final m in messages) {
+      final s = m['seq'] as int?;
+      if (s != null && (maxSeq == null || s > maxSeq)) {
+        maxSeq = s;
+      }
+    }
+    return maxSeq;
+  }
+
+  @override
   Future<Message?> getMessageById(int messageId) async {
     final prefs = await _preferences;
     final messages = _getMessagesList(prefs);
