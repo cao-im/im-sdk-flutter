@@ -234,25 +234,25 @@ class HybridMessageSync {
         final groupIdInt = groupId is int ? groupId : int.tryParse(groupId.toString()) ?? 0;
         if (groupIdInt <= 0) continue;
 
-        // ② 查询本地该群的最后一条消息 mid
-        int sinceMid = 0;
+        // ② 查询本地该群的最后一条消息 seq（服务端序号，严格递增）
+        int sinceSeq = 0;
         try {
           final lastMsg = await _dbHelper.getLastMessage(0, groupId: groupIdInt);
-          if (lastMsg != null && lastMsg.mid != null && lastMsg.mid! > 0) {
-            sinceMid = lastMsg.mid!;
+          if (lastMsg != null && lastMsg.seq != null && lastMsg.seq! > 0) {
+            sinceSeq = lastMsg.seq!;
           }
         } catch (e) {
           _log.w('查询群$groupIdInt 本地最后消息失败: $e');
         }
 
-        _log.i('📋 群聊离线同步: groupId=$groupIdInt, sinceMid=$sinceMid');
+        _log.i('📋 群聊离线同步: groupId=$groupIdInt, sinceSeq=$sinceSeq');
 
         // ③ 发送 WebSocket 请求（响应由 IMClient._handleIncomingMessage 统一处理）
         try {
           _client.connectionManager.sendMessage({
             'type': 'group_offline_sync',
             'groupId': groupIdInt,
-            'sinceMid': sinceMid,
+            'sinceSeq': sinceSeq,
             'limit': _batchSize,
             'timestamp': DateTime.now().millisecondsSinceEpoch,
           });

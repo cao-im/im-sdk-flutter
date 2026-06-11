@@ -307,6 +307,7 @@ class WebStorage implements StorageInterface {
     return {
       'id': message.id,
       'mid': message.mid,
+      'seq': message.seq,
       'from_id': message.fromId,
       'to_id': message.toId,
       'group_id': message.groupId,
@@ -323,6 +324,7 @@ class WebStorage implements StorageInterface {
     return Message.fromJson({
       'id': map['id'],
       'mid': map['mid'],
+      'seq': map['seq'],
       'fromId': map['from_id'],
       'toId': map['to_id'],
       'groupId': map['group_id'],

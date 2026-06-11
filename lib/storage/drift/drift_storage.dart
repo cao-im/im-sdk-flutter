@@ -50,6 +50,7 @@ class DriftStorage implements StorageInterface {
   Future<int> insertMessage(model.Message message) async {
     final messageCompanion = MessagesCompanion.insert(
       mid: Value(message.mid ?? 0),
+      seq: Value(message.seq),
       fromId: message.fromId,
       toId: message.toId,
       groupId: Value(message.groupId),
@@ -315,6 +316,7 @@ class DriftStorage implements StorageInterface {
     return model.Message(
       id: row.id,
       mid: row.mid,
+      seq: row.seq,
       fromId: row.fromId,
       toId: row.toId,
       groupId: row.groupId,

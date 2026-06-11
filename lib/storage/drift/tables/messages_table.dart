@@ -9,6 +9,9 @@ class Messages extends Table {
   /// 消息全局唯一ID(雪花算法生成，0表示待分配)
   IntColumn get mid => integer().withDefault(const Constant(0))();
 
+  /// 服务端序号（完全由服务端生成，严格递增，用于增量离线同步）
+  IntColumn get seq => integer().nullable()();
+
   /// 发送者用户ID
   IntColumn get fromId => integer()();
 

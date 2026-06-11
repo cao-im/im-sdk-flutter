@@ -53,9 +53,13 @@ class Message {
   final SenderInfo? senderInfo;
   final GroupInfo? groupInfo;
 
+  /// 服务端序号（完全由服务端生成，严格递增，用于增量离线同步）
+  final int? seq;
+
   Message({
     this.id,
     this.mid,
+    this.seq,
     required this.fromId,
     required this.toId,
     this.groupId,
@@ -74,6 +78,7 @@ class Message {
     return Message(
       id: json['id'],
       mid: json['mid'],
+      seq: json['seq'],
       fromId: json['fromId'] ?? 0,
       toId: json['toId'] ?? 0,
       groupId: json['groupId'],
@@ -96,6 +101,7 @@ class Message {
     final json = {
       'id': id,
       'mid': mid,
+      'seq': seq,
       'fromId': fromId,
       'toId': toId,
       'groupId': groupId,
@@ -128,6 +134,7 @@ class Message {
   Message copyWith({
     int? id,
     int? mid,
+    int? seq,
     int? fromId,
     int? toId,
     int? groupId,
@@ -143,6 +150,7 @@ class Message {
     return Message(
       id: id ?? this.id,
       mid: mid ?? this.mid,
+      seq: seq ?? this.seq,
       fromId: fromId ?? this.fromId,
       toId: toId ?? this.toId,
       groupId: groupId ?? this.groupId,
