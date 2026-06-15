@@ -60,6 +60,8 @@ class DriftStorage implements StorageInterface {
       delivered: Value(message.delivered),
       timestamp: message.timestamp,
       localPath: Value(message.localPath),
+      senderNickname: Value(message.senderNickname),
+      senderAvatar: Value(message.senderAvatar),
     );
 
     return _db.into(_db.messages).insert(messageCompanion);
@@ -349,6 +351,8 @@ class DriftStorage implements StorageInterface {
       delivered: row.delivered,
       timestamp: row.timestamp,
       localPath: row.localPath,
+      senderNickname: row.senderNickname,
+      senderAvatar: row.senderAvatar,
     );
   }
 

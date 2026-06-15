@@ -475,11 +475,15 @@ class IMClient {
     required int toId,
     required String content,
     int msgType = 0,
+    String? senderNickname,
+    String? senderAvatar,
   }) async {
     return _messageService.sendMessage(
       toId: toId,
       content: content,
       msgType: msgType,
+      senderNickname: senderNickname,
+      senderAvatar: senderAvatar,
     );
   }
 
@@ -487,11 +491,15 @@ class IMClient {
     required int groupId,
     required String content,
     int msgType = 0,
+    String? senderNickname,
+    String? senderAvatar,
   }) async {
     return _messageService.sendGroupMessage(
       groupId: groupId,
       content: content,
       msgType: msgType,
+      senderNickname: senderNickname,
+      senderAvatar: senderAvatar,
     );
   }
 

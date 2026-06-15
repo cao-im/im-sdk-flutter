@@ -181,6 +181,28 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _senderNicknameMeta = const VerificationMeta(
+    'senderNickname',
+  );
+  @override
+  late final GeneratedColumn<String> senderNickname = GeneratedColumn<String>(
+    'sender_nickname',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _senderAvatarMeta = const VerificationMeta(
+    'senderAvatar',
+  );
+  @override
+  late final GeneratedColumn<String> senderAvatar = GeneratedColumn<String>(
+    'sender_avatar',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -199,6 +221,8 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     extra,
     readStatus,
     delivered,
+    senderNickname,
+    senderAvatar,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -320,6 +344,24 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         delivered.isAcceptableOrUnknown(data['delivered']!, _deliveredMeta),
       );
     }
+    if (data.containsKey('sender_nickname')) {
+      context.handle(
+        _senderNicknameMeta,
+        senderNickname.isAcceptableOrUnknown(
+          data['sender_nickname']!,
+          _senderNicknameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sender_avatar')) {
+      context.handle(
+        _senderAvatarMeta,
+        senderAvatar.isAcceptableOrUnknown(
+          data['sender_avatar']!,
+          _senderAvatarMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -393,6 +435,14 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         DriftSqlType.bool,
         data['${effectivePrefix}delivered'],
       )!,
+      senderNickname: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sender_nickname'],
+      ),
+      senderAvatar: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sender_avatar'],
+      ),
     );
   }
 
@@ -450,6 +500,12 @@ class Message extends DataClass implements Insertable<Message> {
 
   /// 送达状态: false-未送达, true-已送达（独立于status，发送方视角）
   final bool delivered;
+
+  /// 发送者昵称（冗余存储，避免频繁查询用户表）
+  final String? senderNickname;
+
+  /// 发送者头像（冗余存储，避免频繁查询用户表）
+  final String? senderAvatar;
   const Message({
     required this.id,
     required this.mid,
@@ -467,6 +523,8 @@ class Message extends DataClass implements Insertable<Message> {
     this.extra,
     required this.readStatus,
     required this.delivered,
+    this.senderNickname,
+    this.senderAvatar,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -497,6 +555,12 @@ class Message extends DataClass implements Insertable<Message> {
     }
     map['read_status'] = Variable<int>(readStatus);
     map['delivered'] = Variable<bool>(delivered);
+    if (!nullToAbsent || senderNickname != null) {
+      map['sender_nickname'] = Variable<String>(senderNickname);
+    }
+    if (!nullToAbsent || senderAvatar != null) {
+      map['sender_avatar'] = Variable<String>(senderAvatar);
+    }
     return map;
   }
 
@@ -526,6 +590,12 @@ class Message extends DataClass implements Insertable<Message> {
           : Value(extra),
       readStatus: Value(readStatus),
       delivered: Value(delivered),
+      senderNickname: senderNickname == null && nullToAbsent
+          ? const Value.absent()
+          : Value(senderNickname),
+      senderAvatar: senderAvatar == null && nullToAbsent
+          ? const Value.absent()
+          : Value(senderAvatar),
     );
   }
 
@@ -551,6 +621,8 @@ class Message extends DataClass implements Insertable<Message> {
       extra: serializer.fromJson<String?>(json['extra']),
       readStatus: serializer.fromJson<int>(json['readStatus']),
       delivered: serializer.fromJson<bool>(json['delivered']),
+      senderNickname: serializer.fromJson<String?>(json['senderNickname']),
+      senderAvatar: serializer.fromJson<String?>(json['senderAvatar']),
     );
   }
   @override
@@ -573,6 +645,8 @@ class Message extends DataClass implements Insertable<Message> {
       'extra': serializer.toJson<String?>(extra),
       'readStatus': serializer.toJson<int>(readStatus),
       'delivered': serializer.toJson<bool>(delivered),
+      'senderNickname': serializer.toJson<String?>(senderNickname),
+      'senderAvatar': serializer.toJson<String?>(senderAvatar),
     };
   }
 
@@ -593,6 +667,8 @@ class Message extends DataClass implements Insertable<Message> {
     Value<String?> extra = const Value.absent(),
     int? readStatus,
     bool? delivered,
+    Value<String?> senderNickname = const Value.absent(),
+    Value<String?> senderAvatar = const Value.absent(),
   }) => Message(
     id: id ?? this.id,
     mid: mid ?? this.mid,
@@ -610,6 +686,10 @@ class Message extends DataClass implements Insertable<Message> {
     extra: extra.present ? extra.value : this.extra,
     readStatus: readStatus ?? this.readStatus,
     delivered: delivered ?? this.delivered,
+    senderNickname: senderNickname.present
+        ? senderNickname.value
+        : this.senderNickname,
+    senderAvatar: senderAvatar.present ? senderAvatar.value : this.senderAvatar,
   );
   Message copyWithCompanion(MessagesCompanion data) {
     return Message(
@@ -633,6 +713,12 @@ class Message extends DataClass implements Insertable<Message> {
           ? data.readStatus.value
           : this.readStatus,
       delivered: data.delivered.present ? data.delivered.value : this.delivered,
+      senderNickname: data.senderNickname.present
+          ? data.senderNickname.value
+          : this.senderNickname,
+      senderAvatar: data.senderAvatar.present
+          ? data.senderAvatar.value
+          : this.senderAvatar,
     );
   }
 
@@ -654,7 +740,9 @@ class Message extends DataClass implements Insertable<Message> {
           ..write('atUserIds: $atUserIds, ')
           ..write('extra: $extra, ')
           ..write('readStatus: $readStatus, ')
-          ..write('delivered: $delivered')
+          ..write('delivered: $delivered, ')
+          ..write('senderNickname: $senderNickname, ')
+          ..write('senderAvatar: $senderAvatar')
           ..write(')'))
         .toString();
   }
@@ -677,6 +765,8 @@ class Message extends DataClass implements Insertable<Message> {
     extra,
     readStatus,
     delivered,
+    senderNickname,
+    senderAvatar,
   );
   @override
   bool operator ==(Object other) =>
@@ -697,7 +787,9 @@ class Message extends DataClass implements Insertable<Message> {
           other.atUserIds == this.atUserIds &&
           other.extra == this.extra &&
           other.readStatus == this.readStatus &&
-          other.delivered == this.delivered);
+          other.delivered == this.delivered &&
+          other.senderNickname == this.senderNickname &&
+          other.senderAvatar == this.senderAvatar);
 }
 
 class MessagesCompanion extends UpdateCompanion<Message> {
@@ -717,6 +809,8 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   final Value<String?> extra;
   final Value<int> readStatus;
   final Value<bool> delivered;
+  final Value<String?> senderNickname;
+  final Value<String?> senderAvatar;
   const MessagesCompanion({
     this.id = const Value.absent(),
     this.mid = const Value.absent(),
@@ -734,6 +828,8 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.extra = const Value.absent(),
     this.readStatus = const Value.absent(),
     this.delivered = const Value.absent(),
+    this.senderNickname = const Value.absent(),
+    this.senderAvatar = const Value.absent(),
   });
   MessagesCompanion.insert({
     this.id = const Value.absent(),
@@ -752,6 +848,8 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     this.extra = const Value.absent(),
     this.readStatus = const Value.absent(),
     this.delivered = const Value.absent(),
+    this.senderNickname = const Value.absent(),
+    this.senderAvatar = const Value.absent(),
   }) : fromId = Value(fromId),
        toId = Value(toId),
        content = Value(content),
@@ -775,6 +873,8 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     Expression<String>? extra,
     Expression<int>? readStatus,
     Expression<bool>? delivered,
+    Expression<String>? senderNickname,
+    Expression<String>? senderAvatar,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -793,6 +893,8 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       if (extra != null) 'extra': extra,
       if (readStatus != null) 'read_status': readStatus,
       if (delivered != null) 'delivered': delivered,
+      if (senderNickname != null) 'sender_nickname': senderNickname,
+      if (senderAvatar != null) 'sender_avatar': senderAvatar,
     });
   }
 
@@ -813,6 +915,8 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     Value<String?>? extra,
     Value<int>? readStatus,
     Value<bool>? delivered,
+    Value<String?>? senderNickname,
+    Value<String?>? senderAvatar,
   }) {
     return MessagesCompanion(
       id: id ?? this.id,
@@ -831,6 +935,8 @@ class MessagesCompanion extends UpdateCompanion<Message> {
       extra: extra ?? this.extra,
       readStatus: readStatus ?? this.readStatus,
       delivered: delivered ?? this.delivered,
+      senderNickname: senderNickname ?? this.senderNickname,
+      senderAvatar: senderAvatar ?? this.senderAvatar,
     );
   }
 
@@ -885,6 +991,12 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     if (delivered.present) {
       map['delivered'] = Variable<bool>(delivered.value);
     }
+    if (senderNickname.present) {
+      map['sender_nickname'] = Variable<String>(senderNickname.value);
+    }
+    if (senderAvatar.present) {
+      map['sender_avatar'] = Variable<String>(senderAvatar.value);
+    }
     return map;
   }
 
@@ -906,7 +1018,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
           ..write('atUserIds: $atUserIds, ')
           ..write('extra: $extra, ')
           ..write('readStatus: $readStatus, ')
-          ..write('delivered: $delivered')
+          ..write('delivered: $delivered, ')
+          ..write('senderNickname: $senderNickname, ')
+          ..write('senderAvatar: $senderAvatar')
           ..write(')'))
         .toString();
   }
@@ -2994,6 +3108,8 @@ typedef $$MessagesTableCreateCompanionBuilder =
       Value<String?> extra,
       Value<int> readStatus,
       Value<bool> delivered,
+      Value<String?> senderNickname,
+      Value<String?> senderAvatar,
     });
 typedef $$MessagesTableUpdateCompanionBuilder =
     MessagesCompanion Function({
@@ -3013,6 +3129,8 @@ typedef $$MessagesTableUpdateCompanionBuilder =
       Value<String?> extra,
       Value<int> readStatus,
       Value<bool> delivered,
+      Value<String?> senderNickname,
+      Value<String?> senderAvatar,
     });
 
 class $$MessagesTableFilterComposer
@@ -3101,6 +3219,16 @@ class $$MessagesTableFilterComposer
 
   ColumnFilters<bool> get delivered => $composableBuilder(
     column: $table.delivered,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get senderNickname => $composableBuilder(
+    column: $table.senderNickname,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get senderAvatar => $composableBuilder(
+    column: $table.senderAvatar,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3193,6 +3321,16 @@ class $$MessagesTableOrderingComposer
     column: $table.delivered,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get senderNickname => $composableBuilder(
+    column: $table.senderNickname,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get senderAvatar => $composableBuilder(
+    column: $table.senderAvatar,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MessagesTableAnnotationComposer
@@ -3255,6 +3393,16 @@ class $$MessagesTableAnnotationComposer
 
   GeneratedColumn<bool> get delivered =>
       $composableBuilder(column: $table.delivered, builder: (column) => column);
+
+  GeneratedColumn<String> get senderNickname => $composableBuilder(
+    column: $table.senderNickname,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get senderAvatar => $composableBuilder(
+    column: $table.senderAvatar,
+    builder: (column) => column,
+  );
 }
 
 class $$MessagesTableTableManager
@@ -3301,6 +3449,8 @@ class $$MessagesTableTableManager
                 Value<String?> extra = const Value.absent(),
                 Value<int> readStatus = const Value.absent(),
                 Value<bool> delivered = const Value.absent(),
+                Value<String?> senderNickname = const Value.absent(),
+                Value<String?> senderAvatar = const Value.absent(),
               }) => MessagesCompanion(
                 id: id,
                 mid: mid,
@@ -3318,6 +3468,8 @@ class $$MessagesTableTableManager
                 extra: extra,
                 readStatus: readStatus,
                 delivered: delivered,
+                senderNickname: senderNickname,
+                senderAvatar: senderAvatar,
               ),
           createCompanionCallback:
               ({
@@ -3337,6 +3489,8 @@ class $$MessagesTableTableManager
                 Value<String?> extra = const Value.absent(),
                 Value<int> readStatus = const Value.absent(),
                 Value<bool> delivered = const Value.absent(),
+                Value<String?> senderNickname = const Value.absent(),
+                Value<String?> senderAvatar = const Value.absent(),
               }) => MessagesCompanion.insert(
                 id: id,
                 mid: mid,
@@ -3354,6 +3508,8 @@ class $$MessagesTableTableManager
                 extra: extra,
                 readStatus: readStatus,
                 delivered: delivered,
+                senderNickname: senderNickname,
+                senderAvatar: senderAvatar,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

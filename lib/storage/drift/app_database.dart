@@ -15,7 +15,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(this.userId) : super(_openConnection(userId));
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -76,6 +76,11 @@ class AppDatabase extends _$AppDatabase {
       if (from < 9) {
         await m.addColumn(messages, messages.delivered);
         print('[AppDatabase] ✅ 迁移完成: 添加 messages.delivered 字段');
+      }
+      if (from < 10) {
+        await m.addColumn(messages, messages.senderNickname);
+        await m.addColumn(messages, messages.senderAvatar);
+        print('[AppDatabase] ✅ 迁移完成: 添加 messages.senderNickname 和 senderAvatar 字段');
       }
     },
   );

@@ -6,12 +6,16 @@ abstract class MessageService {
     required String content,
     int msgType = 0,
     int? groupId,
+    String? senderNickname,
+    String? senderAvatar,
   });
 
   Future<Message> sendGroupMessage({
     required int groupId,
     required String content,
     int msgType = 0,
+    String? senderNickname,
+    String? senderAvatar,
   });
 
   Future<List<Message>> getHistoryMessages({

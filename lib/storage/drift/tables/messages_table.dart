@@ -50,4 +50,10 @@ class Messages extends Table {
 
   /// 送达状态: false-未送达, true-已送达（独立于status，发送方视角）
   BoolColumn get delivered => boolean().withDefault(const Constant(false))();
+
+  /// 发送者昵称（冗余存储，避免频繁查询用户表）
+  TextColumn get senderNickname => text().nullable()();
+
+  /// 发送者头像（冗余存储，避免频繁查询用户表）
+  TextColumn get senderAvatar => text().nullable()();
 }

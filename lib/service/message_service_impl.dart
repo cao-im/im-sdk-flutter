@@ -62,6 +62,8 @@ class MessageServiceImpl implements MessageService {
     required String content,
     int msgType = 0,
     int? groupId,
+    String? senderNickname,
+    String? senderAvatar,
   }) async {
     _log.i('准备发送私聊消息, toId=$toId, msgType=$msgType');
 
@@ -88,6 +90,8 @@ class MessageServiceImpl implements MessageService {
       content: content,
       msgType: messageType,
       status: MessageStatus.sending,
+      senderNickname: senderNickname,
+      senderAvatar: senderAvatar,
     );
 
     final messageId = await _saveMessageToLocal(message);
@@ -118,6 +122,8 @@ class MessageServiceImpl implements MessageService {
     required int groupId,
     required String content,
     int msgType = 0,
+    String? senderNickname,
+    String? senderAvatar,
   }) async {
     _log.i('准备发送群聊消息, groupId=$groupId, msgType=$msgType');
 
@@ -148,6 +154,8 @@ class MessageServiceImpl implements MessageService {
       content: content,
       msgType: messageType,
       status: MessageStatus.sending,
+      senderNickname: senderNickname,
+      senderAvatar: senderAvatar,
     );
 
     final messageId = await _saveMessageToLocal(message);

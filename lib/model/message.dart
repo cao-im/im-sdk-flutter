@@ -52,6 +52,10 @@ class Message {
   final String? localPath;
   final SenderInfo? senderInfo;
   final GroupInfo? groupInfo;
+  /// 发送者昵称（冗余存储，避免频繁查询用户表）
+  final String? senderNickname;
+  /// 发送者头像（冗余存储，避免频繁查询用户表）
+  final String? senderAvatar;
 
   /// 服务端序号（完全由服务端生成，严格递增，用于增量离线同步）
   final int? seq;
@@ -71,10 +75,22 @@ class Message {
     this.localPath,
     this.senderInfo,
     this.groupInfo,
+    this.senderNickname,
+    this.senderAvatar,
   }) : timestamp = timestamp ?? DateTime.now().millisecondsSinceEpoch;
 
   factory Message.fromJson(Map<String, dynamic> json) {
     print('📥 [Message.fromJson] 原始JSON: $json');
+    
+    // 从 senderInfo 中提取昵称和头像
+    String? senderNickname;
+    String? senderAvatar;
+    final senderInfoData = json['senderInfo'];
+    if (senderInfoData != null && senderInfoData is Map<String, dynamic>) {
+      senderNickname = senderInfoData['nickname'];
+      senderAvatar = senderInfoData['avatar'];
+    }
+    
     return Message(
       id: json['id'],
       mid: json['mid'],
@@ -94,6 +110,8 @@ class Message {
       groupInfo: json['groupInfo'] != null
           ? GroupInfo.fromJson(json['groupInfo'])
           : null,
+      senderNickname: senderNickname,
+      senderAvatar: senderAvatar,
     );
   }
 
@@ -146,6 +164,8 @@ class Message {
     String? localPath,
     SenderInfo? senderInfo,
     GroupInfo? groupInfo,
+    String? senderNickname,
+    String? senderAvatar,
   }) {
     return Message(
       id: id ?? this.id,
@@ -162,6 +182,8 @@ class Message {
       localPath: localPath ?? this.localPath,
       senderInfo: senderInfo ?? this.senderInfo,
       groupInfo: groupInfo ?? this.groupInfo,
+      senderNickname: senderNickname ?? this.senderNickname,
+      senderAvatar: senderAvatar ?? this.senderAvatar,
     );
   }
 
