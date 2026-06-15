@@ -168,9 +168,9 @@ class DriftStorage implements StorageInterface {
   Future<void> updateMessage(model.Message message) async {
     // 使用 mid 作为匹配条件（mid 是稳定的，而 id 在 send_confirmation 后会从本地ID变为服务端ID）
     if (message.mid == null || message.mid == 0) return;
+    // 注意：不更新 id 字段（数据库自增主键），只更新其他字段
     await (_db.update(_db.messages)..where((tbl) => tbl.mid.equals(message.mid!)))
         .write(MessagesCompanion(
-              id: message.id != null ? Value(message.id!) : const Value.absent(),
               seq: Value(message.seq),
               status: Value(message.status.value),
               delivered: Value(message.delivered),
@@ -186,7 +186,8 @@ class DriftStorage implements StorageInterface {
   @override
   Future<void> updateMessageContent(
       int messageId, String content, model.MessageStatus status) async {
-    await (_db.update(_db.messages)..where((tbl) => tbl.id.equals(messageId)))
+    // 使用 mid 作为匹配条件（与 updateMessage 保持一致）
+    await (_db.update(_db.messages)..where((tbl) => tbl.mid.equals(messageId)))
         .write(MessagesCompanion(
               content: Value(content),
               status: Value(status.value),

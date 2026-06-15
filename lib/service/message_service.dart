@@ -25,6 +25,8 @@ abstract class MessageService {
 
   Future<Message?> getMessage(int messageId);
 
+  Future<Message?> getMessageByMid(int mid);
+
   Future<List<Message>> getUnreadMessages(int userId);
 
   Future<void> markAsRead(int messageId, {int? groupId});

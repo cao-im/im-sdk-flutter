@@ -177,7 +177,10 @@ class MessageServiceImpl implements MessageService {
   Future<void> recallMessage(int messageId) async {
     _log.i('执行消息撤回, messageId=$messageId');
 
-    final message = await getMessage(messageId);
+    // 先尝试用 mid 查找（优先），再用 id 查找
+    Message? message = await getMessageByMid(messageId);
+    message ??= await getMessage(messageId);
+
     if (message == null) {
       _log.e('消息不存在: $messageId');
       throw StateError('消息不存在: $messageId');
@@ -219,9 +222,11 @@ class MessageServiceImpl implements MessageService {
         throw StateError('网络未连接，请检查网络后重试');
       }
 
+      // 使用 mid 发送撤回请求（mid 是全局唯一的）
+      final recallMid = message.mid ?? messageId;
       _connectionManager.sendMessage({
         'type': 'recall_message',
-        'messageId': messageId,
+        'messageId': recallMid,
         'timestamp': now,
       });
 
@@ -282,6 +287,16 @@ class MessageServiceImpl implements MessageService {
       return await _databaseHelper.getMessageById(messageId);
     } catch (e) {
       _log.e('获取消息失败, messageId=$messageId', error: e);
+      return null;
+    }
+  }
+
+  @override
+  Future<Message?> getMessageByMid(int mid) async {
+    try {
+      return await _databaseHelper.getMessageByMid(mid);
+    } catch (e) {
+      _log.e('获取消息失败, mid=$mid', error: e);
       return null;
     }
   }
@@ -443,13 +458,19 @@ class MessageServiceImpl implements MessageService {
 
   Future<void> _updateMessageInDb(Message message) async {
     try {
+      // 优先使用 mid 更新（mid 是稳定的全局唯一ID）
+      final updateId = message.mid ?? message.id;
+      if (updateId == null) {
+        _log.e('更新消息失败: 消息没有有效的 id 或 mid');
+        return;
+      }
       await _databaseHelper.updateMessageContent(
-        message.id!,
+        updateId,
         message.content,
         message.status,
       );
     } catch (e) {
-      _log.e('更新消息状态失败, messageId=${message.id}', error: e);
+      _log.e('更新消息状态失败, messageId=${message.id}, mid=${message.mid}', error: e);
     }
   }
 

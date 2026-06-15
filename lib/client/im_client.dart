@@ -906,10 +906,12 @@ class IMClient {
         return;
       }
 
-      final msgId = messageId is int
+      final msgMid = messageId is int
           ? messageId
           : int.parse(messageId.toString());
-      final existingMessage = await getMessage(msgId);
+
+      // 使用 mid 查找消息（服务器发送的是 mid，不是本地 id）
+      final existingMessage = await _messageService.getMessageByMid(msgMid);
 
       if (existingMessage != null &&
           existingMessage.status != MessageStatus.recalled) {
@@ -918,10 +920,10 @@ class IMClient {
           content: '[消息已撤回]',
         );
 
-        await _storage.updateMessageContent(msgId, '[消息已撤回]', MessageStatus.recalled);
+        await _storage.updateMessageContent(msgMid, '[消息已撤回]', MessageStatus.recalled);
 
         _eventBus.fire(MessageRecalledEvent(message: recalledMessage));
-        _log.i('收到消息撤回通知, messageId=$msgId');
+        _log.i('收到消息撤回通知, messageMid=$msgMid');
       }
     } catch (e) {
       _log.e('处理消息撤回通知失败', error: e);
@@ -959,10 +961,10 @@ class IMClient {
             newStatus = MessageStatus.sent;
         }
 
-        // 更新本地记录：服务端ID + 服务端seq + 状态
+        // 更新本地记录：服务端seq + 状态
         // （seq 是服务端雪花ID，用于离线增量同步的基准，必须写回本地）
+        // 注意：不更新 id 字段（数据库自增主键），只更新 seq 和 status
         final updatedMessage = localMessage.copyWith(
-          id: serverId ?? localMessage.id,
           seq: serverSeq ?? localMessage.seq,
           status: newStatus,
         );
