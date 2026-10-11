@@ -18,6 +18,9 @@ abstract class ConnectionListener {
   void onReconnectFailed();
   
   void onReconnectingStateChanged(bool isReconnecting) {}
+
+  /// Token/Refresh 永久失效，SDK 已停止重连；宿主应清理登录态并引导重新登录
+  void onAuthExpired(String reason) {}
 }
 
 abstract class ConversationListener {

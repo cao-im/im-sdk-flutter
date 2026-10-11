@@ -241,6 +241,7 @@ class ConnectionManager {
               return;
             }
 
+            _heartbeatManager.onResponseReceived();
             _messageController.add(data);
           } catch (e) {
             _log.e('消息解析错误', error: e);

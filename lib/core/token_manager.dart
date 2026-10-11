@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'sdk_http_client.dart';
+import 'exceptions.dart';
 import '../utils/logger.dart';
 
 /// Token 管理器
@@ -36,9 +37,38 @@ class TokenManager {
   String _serverUrl = '';
 
   bool _isRefreshing = false;
+  bool _lastRefreshPermanent = false;
 
   String? get accessToken => _accessToken;
   String? get refreshToken => _refreshToken;
+
+  /// 最近一次 refresh 是否被服务端判定为永久失败（无效/过期 refresh）
+  bool get lastRefreshWasPermanent => _lastRefreshPermanent;
+
+  /// AccessToken 是否已过期（JWT exp）
+  bool get isAccessTokenExpired => isJwtExpired(_accessToken);
+
+  /// RefreshToken 是否已过期（JWT exp）
+  bool get isRefreshTokenExpired => isJwtExpired(_refreshToken);
+
+  /// 解析 JWT exp，判断是否已过期；无法解析时视为已过期
+  static bool isJwtExpired(String? token) {
+    if (token == null || token.isEmpty) return true;
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return true;
+      final normalized = base64.normalize(parts[1]);
+      final decoded = utf8.decode(base64.decode(normalized));
+      final claims = jsonDecode(decoded);
+      final exp = claims['exp'] as int?;
+      if (exp == null) return true;
+      return DateTime.now().isAfter(
+        DateTime.fromMillisecondsSinceEpoch(exp * 1000),
+      );
+    } catch (_) {
+      return true;
+    }
+  }
 
   /// 初始化 TokenManager
   ///
@@ -93,6 +123,8 @@ class TokenManager {
   ///
   /// 返回 true 表示刷新成功，false 表示失败
   Future<bool> refresh() async {
+    _lastRefreshPermanent = false;
+
     if (_isRefreshing) {
       _log.w('[TokenManager] 正在刷新中，跳过重复请求');
       return false;
@@ -100,6 +132,7 @@ class TokenManager {
 
     if (_refreshToken == null || _refreshToken!.isEmpty) {
       _log.e('[TokenManager] ❌ 无法刷新: 无RefreshToken');
+      _lastRefreshPermanent = true;
       return false;
     }
 
@@ -133,7 +166,11 @@ class TokenManager {
         }
       }
 
-      _log.e('[TokenManager] ❌ Token刷新失败');
+      _lastRefreshPermanent = result['permanent'] == true;
+      _log.e(
+        '[TokenManager] ❌ Token刷新失败'
+        '${_lastRefreshPermanent ? " (永久失败，需重新登录)" : ""}',
+      );
       return false;
     } finally {
       _isRefreshing = false;
@@ -244,11 +281,12 @@ class TokenManager {
 
   /// 连接前确保 Token 有效
   ///
-  /// 如果 AccessToken 即将过期（<1小时），自动刷新
+  /// 如果 AccessToken 即将过期（<1小时），自动刷新。
+  /// Access 已过期且刷新永久失败时抛出 [IMException.auth]，调用方应停止重连并引导重新登录。
   Future<void> ensureValidTokenBeforeConnect() async {
     if (!hasValidToken) {
       _log.e('[TokenManager] ❌ 无法连接: 无可用AccessToken');
-      throw StateError('无法连接: 无可用Token');
+      throw IMException.auth('无法连接: 无可用Token，请重新登录');
     }
 
     // 打印当前 AccessToken 状态
@@ -257,14 +295,23 @@ class TokenManager {
       _logTokenExpiry('连接前检查 RefreshToken', _refreshToken!);
     }
 
+    // Access + Refresh 均已过期：无需再打刷新接口，直接要求重新登录
+    if (isAccessTokenExpired && isRefreshTokenExpired) {
+      _log.e('[TokenManager] ❌ Access/Refresh 均已过期，需重新登录');
+      throw IMException.auth('登录已过期，请重新登录');
+    }
+
     if (isTokenExpiringSoon(thresholdHours: 1)) {
       _log.i('[TokenManager] 🔄 连接前检查: AccessToken即将过期或已过期，先刷新...');
       final success = await refresh();
 
       if (success) {
         _log.i('[TokenManager] ✅ 刷新成功，将使用新Token连接');
+      } else if (isAccessTokenExpired || _lastRefreshPermanent) {
+        _log.e('[TokenManager] ❌ 刷新失败且无法继续使用旧Token，需重新登录');
+        throw IMException.auth('登录已过期，请重新登录');
       } else {
-        _log.w('[TokenManager] ❌ 刷新失败！将尝试使用(可能已过期的)旧Token连接，可能再次失败');
+        _log.w('[TokenManager] ⚠️ 刷新失败，但 AccessToken 仍可用，继续使用旧Token连接');
       }
     } else {
       _log.i('[TokenManager] ✅ AccessToken仍然有效，无需刷新');

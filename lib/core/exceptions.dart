@@ -5,6 +5,9 @@ class IMException implements Exception {
 
   const IMException(this.message, [this.code = -1, this.stackTrace]);
 
+  /// 认证失败（需重新登录），对应 [ErrorCode.authFailed]
+  bool get isAuthError => code == ErrorCode.authFailed;
+
   @override
   String toString() => 'IMException[$code]: $message';
 

@@ -6,6 +6,7 @@ export 'core/connection_status.dart';
 export 'core/heartbeat.dart';
 export 'core/reconnect.dart' hide VoidCallback;
 export 'core/exceptions.dart';
+export 'core/token_manager.dart';
 
 export 'model/message.dart';
 export 'model/conversation.dart';

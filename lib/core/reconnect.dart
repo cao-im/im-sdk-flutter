@@ -7,6 +7,7 @@ typedef DelayCalculator = int Function(int retryCount);
 class ReconnectManager {
   Timer? _reconnectTimer;
   bool _isReconnecting = false;
+  bool _aborted = false;
   int _retryCount = 0;
   
   final int maxRetries;
@@ -36,8 +37,9 @@ class ReconnectManager {
   });
 
   bool get isReconnecting => _isReconnecting;
+  bool get isAborted => _aborted;
   int get retryCount => _retryCount;
-  bool get canRetry => infiniteRetry || _retryCount < maxRetries;
+  bool get canRetry => !_aborted && (infiniteRetry || _retryCount < maxRetries);
   int get remainingRetries => infiniteRetry ? -1 : (maxRetries - _retryCount);
   
   String get statusDescription {
@@ -53,6 +55,11 @@ class ReconnectManager {
   }
 
   Future<void> scheduleReconnect({String? reason}) async {
+    if (_aborted) {
+      _log.d('⏭️ 跳过重连请求: 已永久停止（认证失效等）');
+      return;
+    }
+
     if (_isReconnecting) {
       _log.d('⏭️ 跳过重连请求: 正在重连中');
       return;
@@ -99,6 +106,11 @@ class ReconnectManager {
       
       _log.i('   调用 onReconnect() 回调...');
       final success = await onReconnect();
+
+      if (_aborted) {
+        _log.w('⏹️ 重连已永久中止，不再继续');
+        return;
+      }
       
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       
@@ -120,6 +132,11 @@ class ReconnectManager {
         }
       }
     } catch (e, stack) {
+      if (_aborted) {
+        _log.w('⏹️ 重连已永久中止，忽略异常后的重试');
+        return;
+      }
+
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       _log.e('❌ 重连异常: $e', error: e);
       _log.e('   耗时: ${duration}ms');
@@ -147,10 +164,28 @@ class ReconnectManager {
     onStatusChange(false);
   }
 
+  /// 永久停止重连（认证失效等不可恢复错误）
+  ///
+  /// [notifyFailed] 为 true 时触发 [onReconnectFailed]；认证失效场景可设为 false，
+  /// 由上层通过 onAuthExpired 引导重新登录。
+  void abort({String? reason, bool notifyFailed = true}) {
+    _log.w('🛑 永久停止重连: ${reason ?? "未知原因"}');
+    _aborted = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _isReconnecting = false;
+    _retryCount = 0;
+    onStatusChange(false);
+    if (notifyFailed) {
+      onReconnectFailed();
+    }
+  }
+
   void reset({bool logReset = true}) {
     if (logReset && _retryCount > 0) {
       _log.i('🔄 重置重连状态 (之前已重试 $_retryCount 次)');
     }
+    _aborted = false;
     cancel();
     _retryCount = 0;
   }

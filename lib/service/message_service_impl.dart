@@ -547,18 +547,13 @@ class MessageServiceImpl implements MessageService {
     _log.d('正在发送消息, mid=${message.mid}, id=${message.id}, type=${message.msgType.name}');
     _connectionManager.sendMessage(protocolData);
 
-    final sentMessage = message.copyWith(status: MessageStatus.sent);
-    await _updateMessageInDb(sentMessage);
-
-    final dedupKey = _generateDedupKey(sentMessage);
+    final dedupKey = _generateDedupKey(message);
     _sentMessageIds.add(dedupKey);
 
-    _eventBus.fire(MessageSentEvent(message: sentMessage));
-    
-    // ✅ 触发会话更新事件（通知 UI 刷新会话列表）
+    // 会话列表先更新。已发送状态等服务端 send_confirmation 再写。
     try {
       final currentUserId = _getCurrentUserId();
-      final targetId = sentMessage.toId > 0 ? sentMessage.toId : (sentMessage.groupId ?? 0);
+      final targetId = message.toId > 0 ? message.toId : (message.groupId ?? 0);
       // 重新从数据库获取最新的会话数据
       final conversations = await _databaseHelper.getConversations(currentUserId ?? 0);
       if (conversations.isNotEmpty) {

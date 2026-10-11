@@ -100,7 +100,7 @@ class Message {
       groupId: json['groupId'],
       content: json['content'] ?? '',
       msgType: MessageType.fromValue(json['msgType'] ?? 0),
-      status: MessageStatus.fromValue(json['status'] ?? 0),
+      status: statusFromPayload(json),
       delivered: json['delivered'] == true || json['delivered'] == 1,
       timestamp: json['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
       localPath: json['localPath'],
@@ -262,4 +262,25 @@ class Message {
   String? get groupDisplayName {
     return groupInfo?.groupName;
   }
+}
+
+/// 服务端下行同时带有客户端语义的 status，以及历史字段 msgStatus（0 未读 / 1 已读 / -2 撤回）。
+MessageStatus statusFromPayload(Map<String, dynamic> json) {
+  if (json.containsKey('status') && json['status'] != null) {
+    final value = json['status'];
+    if (value is int) {
+      return MessageStatus.fromValue(value);
+    }
+  }
+  final msgStatus = json['msgStatus'];
+  if (msgStatus == -2) {
+    return MessageStatus.recalled;
+  }
+  if (msgStatus == 1) {
+    return MessageStatus.read;
+  }
+  if (json['delivered'] == 1 || json['delivered'] == true) {
+    return MessageStatus.delivered;
+  }
+  return MessageStatus.sent;
 }

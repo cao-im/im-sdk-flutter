@@ -46,6 +46,7 @@ enum ConnectionEventType {
   connecting,
   reconnecting,
   reconnectFailed,
+  authExpired,
 }
 
 class ConversationEvent extends IMEvent {

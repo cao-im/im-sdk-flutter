@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../core/connection_manager.dart';
 import '../core/connection_status.dart';
+import '../core/exceptions.dart';
 import '../core/hybrid_message_sync.dart';
 import '../core/keep_alive_manager.dart';
 import '../core/reconnect.dart';
@@ -97,6 +98,7 @@ class IMClient {
   int? currentUserId;
   bool _isInitialized = false;
   bool _dbAvailable = true;
+  bool _authExpiredHandled = false;
   late IMConfig _config;
 
   late ConnectionManager _connectionManager;
@@ -272,6 +274,10 @@ class IMClient {
       throw StateError('IMClient未初始化，请先调用init()方法');
     }
 
+    // 新一次登录/连接：清除认证失效标记，允许重连
+    _authExpiredHandled = false;
+    _reconnectManager?.reset(logReset: false);
+
     print('📍[IMClient] 设置Token到TokenManager...');
     _tokenManager.setTokens(
       accessToken: userToken,
@@ -279,7 +285,14 @@ class IMClient {
     );
 
     print('📍[IMClient] 连接前检查Token有效性...');
-    await _tokenManager.ensureValidTokenBeforeConnect();
+    try {
+      await _tokenManager.ensureValidTokenBeforeConnect();
+    } on IMException catch (e) {
+      if (e.code == ErrorCode.authFailed) {
+        await _handleAuthExpired(e.message);
+      }
+      rethrow;
+    }
 
     token = _tokenManager.accessToken ?? userToken;
     if (userId != null && userId > 0) {
@@ -337,6 +350,13 @@ class IMClient {
               print('🔄[IMClient] 刷新后 token 长度: ${token.length} (若长度变化说明Token已刷新)');
               await _connectionManager.connect(serverUrl, token);
               return true;
+            } on IMException catch (e) {
+              if (e.code == ErrorCode.authFailed) {
+                await _handleAuthExpired(e.message);
+                return false;
+              }
+              print('❌[IMClient] ReconnectManager 重连异常(IMException): $e');
+              return false;
             } catch (e) {
               print('❌[IMClient] ReconnectManager 重连异常: $e');
               return false;
@@ -372,7 +392,12 @@ class IMClient {
 
         _reconnectSub = _connectionManager.onStatusChanged.listen((status) {
           print('🔗[IMClient] 连接状态变更: $status');
-          
+
+          if (_authExpiredHandled || (_reconnectManager?.isAborted ?? false)) {
+            print('⏭️[IMClient] 认证已失效，跳过自动重连');
+            return;
+          }
+
           if (status == ConnectionStatus.disconnected && currentUserId != null) {
             final reason = '连接状态变为 disconnected';
             print('📢[IMClient] 触发自动重连, 原因: $reason');
@@ -382,8 +407,39 @@ class IMClient {
       } else {
         print('ℹ️[IMClient] ReconnectManager 已存在，跳过初始化');
       }
+    } on IMException {
+      rethrow;
     } catch (e) {
       throw Exception('连接失败: $e');
+    }
+  }
+
+  /// Token 永久失效：停止重连并通知宿主引导重新登录
+  Future<void> _handleAuthExpired(String reason) async {
+    if (_authExpiredHandled) {
+      return;
+    }
+    _authExpiredHandled = true;
+    print('🔐[IMClient] 认证失效，停止重连: $reason');
+
+    _reconnectManager?.abort(reason: reason, notifyFailed: false);
+
+    try {
+      _stopKeepAlive();
+      _stopHybridSync();
+      _connectionManager.disconnect();
+    } catch (e) {
+      print('⚠️[IMClient] 认证失效后清理连接异常(忽略): $e');
+    }
+
+    _eventBus.fire(ConnectionEvent(type: ConnectionEventType.authExpired));
+
+    for (var listener in List<ConnectionListener>.from(_connectionListeners)) {
+      try {
+        listener.onAuthExpired(reason);
+      } catch (e) {
+        print('⚠️[IMClient] onAuthExpired 回调异常: $e');
+      }
     }
   }
 
@@ -399,6 +455,7 @@ class IMClient {
 
     token = '';
     currentUserId = null;
+    _authExpiredHandled = false;
 
     StorageFactory.reset();
   }
@@ -1331,6 +1388,19 @@ class IMClient {
     } catch (e) {
       _log.e('[IMClient] 更新会话失败', error: e);
     }
+  }
+
+  /// 本端同意好友后创建会话（申请方由 friend_accepted 推送走同一套逻辑）
+  Future<void> createAcceptedFriendConversation(int friendId) async {
+    if (currentUserId == null) {
+      _log.e('❌ 创建好友会话失败: currentUserId 为空');
+      return;
+    }
+    await _createFriendConversationAndSystemMessage(
+      friendId,
+      currentUserId!,
+      'accepted',
+    );
   }
 
   Future<void> _createFriendConversationAndSystemMessage(

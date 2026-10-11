@@ -151,7 +151,7 @@ class DriftStorage implements StorageInterface {
   @override
   Future<void> updateMessageStatus(
       int messageId, model.MessageStatus status) async {
-    await (_db.update(_db.messages)..where((tbl) => tbl.id.equals(messageId)))
+    await (_db.update(_db.messages)..where((tbl) => tbl.id.equals(messageId) | tbl.mid.equals(messageId)))
         .write(MessagesCompanion(status: Value(status.value)));
   }
 
@@ -212,7 +212,7 @@ class DriftStorage implements StorageInterface {
       await (_db.update(_db.messages)
             ..where((tbl) =>
                 tbl.groupId.equals(groupId) &
-                tbl.toId.equals(userId) &
+                tbl.fromId.equals(userId).not() &
                 tbl.status.isSmallerThan(Constant(model.MessageStatus.read.value))))
           .write(MessagesCompanion(status: Value(model.MessageStatus.read.value)));
       await (_db.update(_db.conversations)

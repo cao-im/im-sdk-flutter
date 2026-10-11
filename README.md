@@ -4,118 +4,9 @@
 
 CAO IM SDK 是一个功能完善的即时通讯 Flutter SDK 库，提供 WebSocket 连接管理、消息收发、会话管理、群组管理等核心功能。
 
-## ⚠️ 重要：端口限制说明（使用前必读）
+## 端口
 
-### 🔒 强制使用 80 端口
-
-**曹操IM SDK 强制服务端使用 HTTP 标准端口 `80`，此限制不可通过配置修改。**
-
-#### 为什么是 80 端口？
-
-| 原因 | 说明 |
-|------|------|
-| **标准协议** | 80 端口是 HTTP 协议的默认端口，URL 中无需指定端口号 |
-| **简洁访问** | 用户访问更简洁：`http://im.yourdomain.com/api` 而非 `http://im.yourdomain.com:8080/api` |
-| **备案合规** | 符合云服务器域名备案规范（域名 + 80/443 端口需要 ICP 备案） |
-| **避免配置错误** | 统一端口可避免因客户端/服务端端口不一致导致的连接失败 |
-| **增值服务兼容** | 后期客户端等增值服务也会强制校验服务端口 |
-
-#### 部署建议：⭐ 单独服务器部署
-
-> **强烈建议单独使用一台服务器部署曹操IM服务！**
-
-原因如下：
-- **避免端口冲突**：80 端口是 Web 服务常用端口，可能与 Nginx、Apache 等服务冲突
-- **独立扩展**：IM 服务通常需要独立扩容（用户量增长时）
-- **便于维护**：独立部署便于监控、日志收集和故障排查
-- **安全隔离**：与其他业务服务隔离，降低安全风险
-
-##### 推荐部署架构
-
-```
-                    ┌─────────────────┐
-                    │   用户客户端     │
-                    │  (APP/Web/H5)   │
-                    └────────┬────────┘
-                             │
-                    域名: im.yourdomain.com
-                    端口: 80 (HTTP) / 443 (HTTPS)
-                             │
-                    ┌────────▼────────┐
-                    │   CDN / 负载均衡  │  ← 可选
-                    └────────┬────────┘
-                             │
-              ┌──────────────▼──────────────┐
-              │    曹操IM 专用服务器          │  ← ⭐ 单独服务器
-              │                              │
-              │  ┌──────────────────────┐    │
-              │  │  Nginx (反向代理)     │    │  ← 可选，用于 HTTPS
-              │  │  :443 → :80           │    │
-              │  └──────────┬───────────┘    │
-              │             │                 │
-              │  ┌──────────▼───────────┐    │
-              │  │  曹操IM Server       │    │  ← 监听 80 端口
-              │  │  (Spring Boot)       │    │
-              │  │  :80                 │    │
-              │  └──────────────────────┘    │
-              │                              │
-              │  ┌──────────────────────┐    │
-              │  │  MySQL + Redis        │    │
-              │  └──────────────────────┘    │
-              └──────────────────────────────┘
-```
-
-##### 如果必须在同一台服务器部署
-
-如果无法使用单独服务器，请确保：
-
-1. **停止占用 80 端口的服务**（如 Nginx/Apache），或将其改为其他端口
-2. **或者使用 Nginx 反向代理**（推荐）：
-
-```nginx
-# /etc/nginx/conf.d/im.conf
-server {
-    listen 80;
-    server_name im.yourdomain.com;
-
-    # WebSocket 代理
-    location /api/ws {
-        proxy_pass http://127.0.0.1:80;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400;
-    }
-
-    # REST API 代理
-    location /api/ {
-        proxy_pass http://127.0.0.1:80;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-#### 端口保护机制
-
-SDK 实现了**多层端口保护**，确保客户端与服务端端口一致：
-
-```
-第1层: SDK 本地校验 - init() 时检查 URL 端口是否为 80
-第2层: 运行时验证 - 连接前调用 /api/health/port-info 验证服务端端口
-第3层: 握手拦截 - WebSocket 握手时再次校验实际监听端口
-```
-
-如果检测到端口不匹配，SDK 会抛出详细错误并拒绝连接。
-
-#### 尝试修改端口的后果
-
-| 修改方式 | 结果 |
-|----------|------|
-| 修改 `application.yml` 的 `port` | ❌ 启动时被代码强制覆盖 |
-| 使用 `--server.port=xxxx` 参数 | ❌ 被检测到并警告 |
-| 设置 `SERVER_PORT` 环境变量 | ❌ 同样无效 |
-| 修改源码重新编译 | ⚠️ 可能成功但官方 SDK 会拒绝连接 |
+SDK 不强制 80 端口。地址里没有写端口时，默认使用 **8080**，与 im-server 的默认端口一致。需要其他端口时，直接写在 URL 里即可，例如 `ws://127.0.0.1:8080/api/ws`。
 
 ## ✨ 特性
 
@@ -151,23 +42,12 @@ import 'package:cao_im_sdk_flutter/cao_im_sdk_flutter.dart';
 
 void main() async {
   // 初始化 IMClient（单例模式）
-  // ⚠️ 注意：服务端强制使用 80 端口，无需在 URL 中指定端口
+  // 不写端口时默认 8080
   final imClient = IMClient();
 
-  // ✅ 正确用法（推荐）- 不指定端口，默认使用 80
   await imClient.init(
-    serverUrl: 'ws://im.yourdomain.com/api/ws',
+    serverUrl: 'ws://127.0.0.1:8080/api/ws',
   );
-
-  // ✅ 也可以明确指定 80 端口
-  await imClient.init(
-    serverUrl: 'ws://im.yourdomain.com:80/api/ws',
-  );
-
-  // ❌ 错误用法 - 使用非 80 端口会抛出异常
-  // await imClient.init(
-  //   serverUrl: 'ws://im.yourdomain.com:8080/api/ws',
-  // );
 }
 ```
 
@@ -504,8 +384,6 @@ SDK 内置自动重连机制，使用指数退避策略：
 | `StateError: WebSocket未连接` | 尝试在未连接状态下发送消息 |
 | `StateError: IMClient未初始化` | 未调用 init() 就尝试连接 |
 | `Exception: 连接失败` | WebSocket 连接建立失败 |
-| `ArgumentError: 端口必须为 80` | 使用了非 80 端口，SDK 强制限制 |
-| `StateError: 服务端端口验证失败` | 服务端端口与 SDK 不匹配（可能使用非官方版本） |
 
 ## 🏗️ 项目结构
 

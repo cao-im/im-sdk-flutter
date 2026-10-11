@@ -81,10 +81,16 @@ class SdkHttpClient {
         }
       }
 
+      final code = data['code'];
       _log.e(
-        '[SdkHttpClient] ❌ Token 刷新失败: code=${data['code']}, message=${data['message']}',
+        '[SdkHttpClient] ❌ Token 刷新失败: code=$code, message=${data['message']}',
       );
-      return {'success': false};
+      return {
+        'success': false,
+        'code': code,
+        'message': data['message'],
+        'permanent': _isPermanentAuthFailure(code),
+      };
     } on DioException catch (e) {
       _log.e(
         '[SdkHttpClient] ❌ Token 刷新网络异常: type=${e.type}, message=${e.message}',
@@ -92,11 +98,24 @@ class SdkHttpClient {
       if (e.response?.data != null) {
         _log.e('[SdkHttpClient] ❌ 服务端响应: ${e.response?.data}');
       }
-      return {'success': false};
+      final status = e.response?.statusCode;
+      return {
+        'success': false,
+        'code': status,
+        'message': e.message,
+        'permanent': status == 401 || status == 403,
+      };
     } catch (e) {
       _log.e('[SdkHttpClient] ❌ Token 刷新异常: $e');
-      return {'success': false};
+      return {'success': false, 'permanent': false};
     }
+  }
+
+  /// 服务端明确拒绝 RefreshToken 时视为永久认证失败（不应继续重连）
+  bool _isPermanentAuthFailure(dynamic code) {
+    if (code == null) return false;
+    // 1005=无效的Refresh Token（im-server），401/403=未认证
+    return code == 1005 || code == 401 || code == 403 || code == 1002;
   }
 
   // ==================== 离线消息相关接口（预留扩展）====================

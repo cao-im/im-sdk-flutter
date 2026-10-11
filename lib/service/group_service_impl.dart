@@ -43,10 +43,18 @@ class GroupServiceImpl implements GroupService {
 
   void _handleServerMessage(Map<String, dynamic> message) {
     final type = message['type'] as String? ?? '';
-    // 只拦截群组信息响应（包含 name/id 等字段），不拦截消息类响应（group_message/group_history/group_offline_sync）
-    final isGroupInfoResponse = message.containsKey('name') || message.containsKey('memberIds');
-    if (type.startsWith('group_') &&
-        isGroupInfoResponse &&
+    const commandTypes = {
+      'group_info',
+      'group_create',
+      'group_list',
+      'group_dismiss',
+      'group_add_members',
+      'group_remove_member',
+      'group_transfer_owner',
+      'group_update',
+      'group_update_info',
+    };
+    if (commandTypes.contains(type) &&
         _pendingResponse != null &&
         !_pendingResponse!.isCompleted) {
       _pendingResponse!.complete(message);
@@ -182,7 +190,7 @@ class GroupServiceImpl implements GroupService {
     }
 
     final request = {
-      'type': 'group_get',
+      'type': 'group_info',
       'groupId': groupId,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     };
