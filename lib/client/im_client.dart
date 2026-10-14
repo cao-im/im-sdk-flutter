@@ -793,6 +793,8 @@ class IMClient {
       _handleReadReceipt(data);
     } else if (type == 'send_confirmation') {
       _handleSendConfirmation(data);
+    } else if (type == 'error') {
+      _handleServerError(data);
     } else if (type == 'delivery_confirmation') {
       _handleDeliveryConfirmation(data);
     } else if (type == 'recall_message') {
@@ -993,6 +995,35 @@ class IMClient {
     } catch (e) {
       _log.e('处理消息撤回通知失败', error: e);
     }
+  }
+
+  /// 处理服务端业务错误（如消息过长）。携带 mid 时标记本地消息失败。
+  void _handleServerError(Map<String, dynamic> data) {
+    final reason = data['message']?.toString() ?? '操作失败';
+    final rawMid = data['mid'];
+    final mid = rawMid is int
+        ? rawMid
+        : int.tryParse(rawMid?.toString() ?? '');
+
+    _log.w('⚠️ [IMClient] 收到服务端 error: $reason, mid=$mid');
+
+    if (mid != null) {
+      _storage.getMessageByMid(mid).then((localMessage) async {
+        if (localMessage != null) {
+          final failedMessage =
+              localMessage.copyWith(status: MessageStatus.failed);
+          await _storage.updateMessage(failedMessage);
+          _eventBus.fire(MessageSentEvent(message: failedMessage));
+        }
+        _eventBus.fire(MessageSendFailedEvent(mid: mid, reason: reason));
+      }).catchError((e) {
+        _log.e('❌ [IMClient] 处理服务端 error 失败', error: e);
+        _eventBus.fire(MessageSendFailedEvent(mid: mid, reason: reason));
+      });
+      return;
+    }
+
+    _eventBus.fire(MessageSendFailedEvent(reason: reason));
   }
 
   /// 处理服务端发送确认：用 mid 匹配本地消息，更新状态为已送达/已发送

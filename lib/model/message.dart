@@ -145,7 +145,7 @@ class Message {
       'msgType': msgType.value,
       if (mid != null) 'mid': mid,
     };
-    print('📤 [Message.toProtocolJson] $json');
+    print('📤 [Message.toProtocolJson] type=${json['type']}, toId=${json['toId']}, msgType=${json['msgType']}, contentBytes=${content.length}');
     return json;
   }
 

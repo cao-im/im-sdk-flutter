@@ -24,6 +24,18 @@ class MessageSentEvent extends MessageEvent {
   MessageSentEvent({required super.message});
 }
 
+/// 服务端拒绝发送（如消息过长、敏感词等）。mid 可用于匹配本地气泡。
+class MessageSendFailedEvent extends IMEvent {
+  final int? mid;
+  final String reason;
+
+  MessageSendFailedEvent({
+    this.mid,
+    required this.reason,
+    super.timestamp,
+  });
+}
+
 class MessageRecalledEvent extends MessageEvent {
   MessageRecalledEvent({required super.message});
 }
