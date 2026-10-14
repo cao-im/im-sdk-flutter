@@ -196,6 +196,18 @@ class WebStorage implements StorageInterface {
   }
 
   @override
+  Future<void> deleteMessage({int? id, int? mid}) async {
+    final prefs = await _preferences;
+    final messages = _getMessagesList(prefs);
+    messages.removeWhere((item) {
+      if (mid != null && mid > 0 && item['mid'] == mid) return true;
+      if (id != null && item['id'] == id) return true;
+      return false;
+    });
+    await _saveMessagesList(prefs, messages);
+  }
+
+  @override
   Future<void> updateMessageContent(int messageId, String content, MessageStatus status) async {
     final prefs = await _preferences;
     final messages = _getMessagesList(prefs);

@@ -182,6 +182,12 @@ class MessageServiceImpl implements MessageService {
   }
 
   @override
+  Future<void> deleteLocalMessage({int? id, int? mid}) async {
+    _log.i('删除本地消息, id=$id, mid=$mid');
+    await _databaseHelper.deleteMessage(id: id, mid: mid);
+  }
+
+  @override
   Future<void> recallMessage(int messageId) async {
     _log.i('执行消息撤回, messageId=$messageId');
 

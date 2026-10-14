@@ -34,6 +34,9 @@ abstract class StorageInterface {
 
   Future<void> updateMessageContent(int messageId, String content, MessageStatus status);
 
+  /// 删除本地消息。优先按 mid，否则按本地 id。
+  Future<void> deleteMessage({int? id, int? mid});
+
   Future<int> getUnreadCount(int userId);
 
   Future<void> markAsRead(int userId, {int? targetId, int? groupId});

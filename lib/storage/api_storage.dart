@@ -168,6 +168,9 @@ class ApiStorage implements StorageInterface {
   }
 
   @override
+  Future<void> deleteMessage({int? id, int? mid}) async {}
+
+  @override
   Future<void> updateMessageContent(int messageId, String content, model.MessageStatus status) async {
     await _request('PUT', '/messages/$messageId', data: {
       'content': content,

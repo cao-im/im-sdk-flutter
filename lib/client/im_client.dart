@@ -589,6 +589,10 @@ class IMClient {
     await _messageService.recallMessage(messageId);
   }
 
+  Future<void> deleteLocalMessage({int? id, int? mid}) async {
+    await _messageService.deleteLocalMessage(id: id, mid: mid);
+  }
+
   Future<Message?> getMessage(int messageId) async {
     return _messageService.getMessage(messageId);
   }
@@ -1544,6 +1548,9 @@ class _FallbackStorage implements StorageInterface {
 
   @override
   Future<void> updateMessageContent(int messageId, String content, MessageStatus status) async {}
+
+  @override
+  Future<void> deleteMessage({int? id, int? mid}) async {}
 
   @override
   Future<int> getUnreadCount(int userId) async => 0;

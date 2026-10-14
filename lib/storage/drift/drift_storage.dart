@@ -186,6 +186,47 @@ class DriftStorage implements StorageInterface {
   }
 
   @override
+  Future<void> deleteMessage({int? id, int? mid}) async {
+    final table = _db.messages;
+    final Expression<bool> match = (mid != null && mid > 0)
+        ? table.mid.equals(mid)
+        : (id != null ? table.id.equals(id) : const Constant(false));
+    if (mid == null && id == null) return;
+
+    final rows = await (_db.select(table)..where((tbl) => match)).get();
+    if (rows.isEmpty) return;
+    final row = rows.first;
+
+    await (_db.delete(table)..where((tbl) => tbl.id.equals(row.id))).go();
+    await _refreshConversationPreview(row);
+  }
+
+  Future<void> _refreshConversationPreview(Message row) async {
+    final isGroup = row.groupId != null && row.groupId! > 0;
+    final targetId = isGroup
+        ? row.groupId!
+        : (row.fromId == _currentUserId ? row.toId : row.fromId);
+    final latest = await getLastMessage(
+      targetId,
+      groupId: isGroup ? row.groupId : null,
+    );
+
+    await (_db.update(_db.conversations)
+          ..where((tbl) => tbl.targetId.equals(targetId)))
+        .write(ConversationsCompanion(
+          lastMessageContent: Value(latest?.content),
+          lastMessageType: Value(latest?.msgType.value),
+          lastMessageStatus: Value(latest?.status.value),
+          lastMessageTimestamp: Value(latest?.timestamp),
+          lastMessageFromId: Value(latest?.fromId),
+          lastMessageToId: Value(latest?.toId),
+          lastMessageGroupId: Value(latest?.groupId),
+          lastMessageLocalPath: Value(latest?.localPath),
+          lastMsgId: Value(latest?.id),
+        ));
+  }
+
+  @override
   Future<void> updateMessageContent(
       int messageId, String content, model.MessageStatus status) async {
     // 使用 mid 作为匹配条件（与 updateMessage 保持一致）

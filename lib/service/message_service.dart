@@ -27,6 +27,8 @@ abstract class MessageService {
 
   Future<void> recallMessage(int messageId);
 
+  Future<void> deleteLocalMessage({int? id, int? mid});
+
   Future<Message?> getMessage(int messageId);
 
   Future<Message?> getMessageByMid(int mid);
