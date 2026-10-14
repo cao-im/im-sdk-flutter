@@ -175,7 +175,6 @@ class DriftStorage implements StorageInterface {
         .write(MessagesCompanion(
               seq: Value(message.seq),
               status: Value(message.status.value),
-              delivered: Value(message.delivered),
             ));
   }
 

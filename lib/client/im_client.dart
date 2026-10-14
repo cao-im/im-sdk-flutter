@@ -1117,19 +1117,17 @@ class IMClient {
 
       _log.i('📦 [IMClient] 收到 delivery_confirmation, mid=$mid');
 
-      // 用 mid 查找本地消息并更新送达状态
-      _storage.getMessageByMid(mid).then((localMessage) async {
+      _storage.updateMessageDelivered(mid is int ? mid : int.parse(mid.toString())).then((_) async {
+        final localMessage = await _storage.getMessageByMid(
+          mid is int ? mid : int.parse(mid.toString()),
+        );
         if (localMessage == null) {
           _log.w('⚠️ [IMClient] 未找到 mid=$mid 对应的本地消息（delivery_confirmation）');
           return;
         }
 
-        // 更新本地消息的 delivered 状态
-        final updatedMessage = localMessage.copyWith(delivered: true);
-        await _storage.updateMessage(updatedMessage);
-
-        _log.i('✅ [IMClient] 消息送达状态已更新: mid=$mid, delivered=true');
-        _eventBus.fire(MessageSentEvent(message: updatedMessage));
+        _log.i('✅ [IMClient] 消息送达状态已更新: mid=$mid, status=${localMessage.status.name}');
+        _eventBus.fire(MessageSentEvent(message: localMessage));
       }).catchError((e) {
         _log.e('❌ [IMClient] 处理 delivery_confirmation 失败', error: e);
       });
