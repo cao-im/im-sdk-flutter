@@ -4,6 +4,7 @@ enum MessageType {
   text(0),
   image(1),
   file(2),
+  voice(3),
   system(99);
 
   final int value;

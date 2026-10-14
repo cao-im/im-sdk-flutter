@@ -118,6 +118,63 @@ class MessageServiceImpl implements MessageService {
   }
 
   @override
+  Future<Message> saveLocalOutgoing({
+    required int toId,
+    int? groupId,
+    required String content,
+    int msgType = 0,
+    MessageStatus status = MessageStatus.failed,
+    String? localPath,
+    String? senderNickname,
+    String? senderAvatar,
+  }) async {
+    final isGroup = groupId != null && groupId > 0;
+    final messageType = MessageType.fromValue(msgType);
+    final mid = SnowflakeIdGenerator().generate();
+    final message = Message(
+      mid: mid,
+      fromId: _getCurrentUserId(),
+      toId: isGroup ? 0 : toId,
+      groupId: isGroup ? groupId : null,
+      content: content,
+      msgType: messageType,
+      status: status,
+      localPath: localPath,
+      senderNickname: senderNickname,
+      senderAvatar: senderAvatar,
+    );
+    final messageId = await _saveMessageToLocal(message);
+    final saved = message.copyWith(id: messageId);
+    await _saveOrUpdateConversation(
+      targetId: isGroup ? groupId : toId,
+      targetType: isGroup ? TargetType.group : TargetType.private,
+      lastMessage: saved,
+    );
+    return saved;
+  }
+
+  @override
+  Future<Message> resendSavedMessage({
+    required int mid,
+    required String content,
+  }) async {
+    final existing = await _databaseHelper.getMessageByMid(mid);
+    if (existing == null) {
+      throw StateError('本地消息不存在，无法重发');
+    }
+    await _databaseHelper.updateMessageContent(mid, content, MessageStatus.sending);
+    final updated = existing.copyWith(content: content, status: MessageStatus.sending);
+    final isGroup = existing.groupId != null && existing.groupId! > 0;
+    await _saveOrUpdateConversation(
+      targetId: isGroup ? existing.groupId! : existing.toId,
+      targetType: isGroup ? TargetType.group : TargetType.private,
+      lastMessage: updated,
+    );
+    _addToQueue(_PendingMessage(message: updated, isGroup: isGroup, retryCount: 0));
+    return updated;
+  }
+
+  @override
   Future<Message> sendGroupMessage({
     required int groupId,
     required String content,

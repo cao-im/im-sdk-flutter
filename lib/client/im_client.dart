@@ -544,6 +544,35 @@ class IMClient {
     );
   }
 
+  Future<Message> saveLocalOutgoing({
+    required int toId,
+    int? groupId,
+    required String content,
+    int msgType = 0,
+    MessageStatus status = MessageStatus.failed,
+    String? localPath,
+    String? senderNickname,
+    String? senderAvatar,
+  }) {
+    return _messageService.saveLocalOutgoing(
+      toId: toId,
+      groupId: groupId,
+      content: content,
+      msgType: msgType,
+      status: status,
+      localPath: localPath,
+      senderNickname: senderNickname,
+      senderAvatar: senderAvatar,
+    );
+  }
+
+  Future<Message> resendSavedMessage({
+    required int mid,
+    required String content,
+  }) {
+    return _messageService.resendSavedMessage(mid: mid, content: content);
+  }
+
   Future<Message> sendGroupMessage({
     required int groupId,
     required String content,
