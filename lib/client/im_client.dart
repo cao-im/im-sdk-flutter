@@ -1344,7 +1344,11 @@ class IMClient {
   }
 
   Future<bool> refreshToken() async {
-    return _tokenManager.refresh();
+    final refreshed = await _tokenManager.refresh();
+    if (refreshed && _tokenManager.accessToken != null) {
+      token = _tokenManager.accessToken!;
+    }
+    return refreshed;
   }
 
   bool get isTokenExpiringSoon => _tokenManager.isTokenExpiringSoon();
