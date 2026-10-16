@@ -99,10 +99,12 @@ class ConversationServiceImpl implements ConversationService {
   @override
   Future<void> markConversationAsRead(int conversationId) async {
     final conversation = await getConversation(conversationId);
-    if (conversation == null || conversation.unreadCount <= 0) return;
+    if (conversation == null) return;
 
-    // 先更新会话未读数（会话级别操作，MessageService 不处理）
-    await _dbHelper.updateUnreadCount(conversationId, 0);
+    // 未读数为 0 时仍要补发回执：群聊打开会话后，服务端可能还没有这些人的已读记录。
+    if (conversation.unreadCount > 0) {
+      await _dbHelper.updateUnreadCount(conversationId, 0);
+    }
 
     // 委托给 IMClient 回调 → MessageService 处理：标记消息已读 + 发送 WebSocket 回执
     if (_onSendReadReceipt != null) {

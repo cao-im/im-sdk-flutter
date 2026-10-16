@@ -450,14 +450,19 @@ class MessageServiceImpl implements MessageService {
       final currentUserId = _getCurrentUserId();
 
       // 先查询该会话的未读消息（在标记已读之前，否则查不到了）
+      // 群聊必须带 groupId，否则会按私聊 from/to 查，群消息回执永远发不出去。
       final allMessages = await _databaseHelper.getMessages(
         targetId: targetId,
+        groupId: groupId,
         currentUserId: currentUserId,
         size: 10000,
       );
 
       final unreadMessages = allMessages
-          .where((m) => m.status != MessageStatus.read)
+          .where((m) =>
+              m.fromId != currentUserId &&
+              m.status != MessageStatus.read &&
+              m.status != MessageStatus.recalled)
           .toList();
 
       _log.i('查到 ${unreadMessages.length} 条未读消息，准备发送回执');

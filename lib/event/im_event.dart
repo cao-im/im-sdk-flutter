@@ -42,8 +42,13 @@ class MessageRecalledEvent extends MessageEvent {
 
 class MessagesReadEvent extends IMEvent {
   final List<int> messageIds;
+  final Map<int, int> readCounts;
 
-  MessagesReadEvent({required this.messageIds, super.timestamp});
+  MessagesReadEvent({
+    required this.messageIds,
+    this.readCounts = const {},
+    super.timestamp,
+  });
 }
 
 class ConnectionEvent extends IMEvent {

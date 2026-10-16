@@ -1077,7 +1077,19 @@ class IMClient {
         await _storage.updateMessageStatus(msgId, MessageStatus.read);
       }
 
-      _eventBus.fire(MessagesReadEvent(messageIds: messageIds));
+      final readCounts = <int, int>{};
+      final rawCounts = data['readCounts'];
+      if (rawCounts is Map) {
+        rawCounts.forEach((key, value) {
+          final mid = int.tryParse('$key');
+          final count = value is int ? value : int.tryParse('$value');
+          if (mid != null && mid > 0 && count != null && count >= 0) {
+            readCounts[mid] = count;
+          }
+        });
+      }
+
+      _eventBus.fire(MessagesReadEvent(messageIds: messageIds, readCounts: readCounts));
       _log.i('收到已读回执, messageIds=$messageIds');
     } catch (e) {
       _log.e('处理已读回执失败', error: e);
