@@ -21,4 +21,10 @@ abstract class ConversationService {
   Future<void> updateLastMessage(int conversationId, Message message);
 
   Future<void> incrementUnreadCount(int conversationId, {int count = 1});
+
+  /// 设置会话置顶
+  Future<void> setConversationTop(int conversationId, bool isTop);
+
+  /// 设置会话免打扰
+  Future<void> setConversationMute(int conversationId, bool isMute);
 }

@@ -49,6 +49,13 @@ abstract class StorageInterface {
 
   Future<void> updateUnreadCount(int conversationId, int count);
 
+  /// 更新会话置顶 / 免打扰标记
+  Future<void> updateConversationFlags(
+    int conversationId, {
+    bool? isTop,
+    bool? isMute,
+  });
+
   Future<void> deleteConversation(int conversationId);
 
   Future<void> close();

@@ -704,6 +704,14 @@ class IMClient {
     );
   }
 
+  Future<void> setConversationTop(int conversationId, bool isTop) async {
+    await _conversationService.setConversationTop(conversationId, isTop);
+  }
+
+  Future<void> setConversationMute(int conversationId, bool isMute) async {
+    await _conversationService.setConversationMute(conversationId, isMute);
+  }
+
   Future<void> deleteConversation(int conversationId) async {
     await _conversationService.deleteConversation(conversationId);
   }
@@ -1600,6 +1608,13 @@ class _FallbackStorage implements StorageInterface {
 
   @override
   Future<void> updateUnreadCount(int conversationId, int count) async {}
+
+  @override
+  Future<void> updateConversationFlags(
+    int conversationId, {
+    bool? isTop,
+    bool? isMute,
+  }) async {}
 
   @override
   Future<void> deleteConversation(int conversationId) async {}

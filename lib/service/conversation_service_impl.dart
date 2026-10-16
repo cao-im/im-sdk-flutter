@@ -158,4 +158,23 @@ class ConversationServiceImpl implements ConversationService {
     _eventBus.fire(ConversationUpdatedEvent(conversation: updated));
   }
 
+  @override
+  Future<void> setConversationTop(int conversationId, bool isTop) async {
+    final conversation = await getConversation(conversationId);
+    if (conversation == null) return;
+
+    await _dbHelper.updateConversationFlags(conversationId, isTop: isTop);
+    final updated = conversation.copyWith(isTop: isTop);
+    _eventBus.fire(ConversationUpdatedEvent(conversation: updated));
+  }
+
+  @override
+  Future<void> setConversationMute(int conversationId, bool isMute) async {
+    final conversation = await getConversation(conversationId);
+    if (conversation == null) return;
+
+    await _dbHelper.updateConversationFlags(conversationId, isMute: isMute);
+    final updated = conversation.copyWith(isMute: isMute);
+    _eventBus.fire(ConversationUpdatedEvent(conversation: updated));
+  }
 }

@@ -23,6 +23,10 @@ class Conversation {
   final Message? lastMessage;
   int unreadCount;
   final int updateTime;
+  /// 是否置顶
+  final bool isTop;
+  /// 是否免打扰
+  final bool isMute;
 
   Conversation({
     this.id,
@@ -32,6 +36,8 @@ class Conversation {
     this.lastMessage,
     this.unreadCount = 0,
     int? updateTime,
+    this.isTop = false,
+    this.isMute = false,
   }) : updateTime = updateTime ?? DateTime.now().millisecondsSinceEpoch;
 
   factory Conversation.fromJson(Map<String, dynamic> json) {
@@ -45,6 +51,8 @@ class Conversation {
           : null,
       unreadCount: json['unreadCount'] ?? 0,
       updateTime: json['updateTime'] ?? DateTime.now().millisecondsSinceEpoch,
+      isTop: json['isTop'] == true || json['isTop'] == 1,
+      isMute: json['isMute'] == true || json['isMute'] == 1,
     );
   }
 
@@ -57,6 +65,8 @@ class Conversation {
       'lastMessage': lastMessage?.toJson(),
       'unreadCount': unreadCount,
       'updateTime': updateTime,
+      'isTop': isTop,
+      'isMute': isMute,
     };
   }
 
@@ -74,6 +84,8 @@ class Conversation {
     Message? lastMessage,
     int? unreadCount,
     int? updateTime,
+    bool? isTop,
+    bool? isMute,
   }) {
     return Conversation(
       id: id ?? this.id,
@@ -83,6 +95,8 @@ class Conversation {
       lastMessage: lastMessage ?? this.lastMessage,
       unreadCount: unreadCount ?? this.unreadCount,
       updateTime: updateTime ?? this.updateTime,
+      isTop: isTop ?? this.isTop,
+      isMute: isMute ?? this.isMute,
     );
   }
 

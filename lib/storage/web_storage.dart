@@ -296,7 +296,11 @@ class WebStorage implements StorageInterface {
     var conversations = _getConversationsList(prefs);
 
     conversations = conversations.where((c) => c['user_id'] == userId).toList();
-    conversations.sort((a, b) => ((b['update_time'] as int?) ?? 0).compareTo((a['update_time'] as int?) ?? 0));
+    conversations.sort((a, b) {
+      final topCmp = ((b['is_top'] as int?) ?? 0).compareTo((a['is_top'] as int?) ?? 0);
+      if (topCmp != 0) return topCmp;
+      return ((b['update_time'] as int?) ?? 0).compareTo((a['update_time'] as int?) ?? 0);
+    });
 
     return conversations.map((map) => _mapToConversation(map)).toList();
   }
@@ -323,6 +327,22 @@ class WebStorage implements StorageInterface {
       conversations[index]['unread_count'] = count;
       await _saveConversationsList(prefs, conversations);
     }
+  }
+
+  @override
+  Future<void> updateConversationFlags(
+    int conversationId, {
+    bool? isTop,
+    bool? isMute,
+  }) async {
+    if (isTop == null && isMute == null) return;
+    final prefs = await _preferences;
+    final conversations = _getConversationsList(prefs);
+    final index = conversations.indexWhere((c) => c['id'] == conversationId);
+    if (index == -1) return;
+    if (isTop != null) conversations[index]['is_top'] = isTop ? 1 : 0;
+    if (isMute != null) conversations[index]['is_mute'] = isMute ? 1 : 0;
+    await _saveConversationsList(prefs, conversations);
   }
 
   @override
@@ -377,6 +397,8 @@ class WebStorage implements StorageInterface {
       'last_message': conversation.lastMessage?.toJson(),
       'unread_count': conversation.unreadCount,
       'update_time': conversation.updateTime,
+      'is_top': conversation.isTop ? 1 : 0,
+      'is_mute': conversation.isMute ? 1 : 0,
     };
   }
 
@@ -391,6 +413,8 @@ class WebStorage implements StorageInterface {
           : null,
       'unreadCount': map['unread_count'],
       'updateTime': map['update_time'],
+      'isTop': map['is_top'],
+      'isMute': map['is_mute'],
     });
   }
 

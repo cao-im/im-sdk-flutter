@@ -216,6 +216,15 @@ class ApiStorage implements StorageInterface {
   }
 
   @override
+  Future<void> updateConversationFlags(
+    int conversationId, {
+    bool? isTop,
+    bool? isMute,
+  }) async {
+    // 会话标记由客户端本地维护
+  }
+
+  @override
   Future<void> deleteConversation(int conversationId) async {
     // 会话删除仅在客户端本地执行，不再通知服务端
   }

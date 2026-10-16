@@ -297,6 +297,8 @@ class DriftStorage implements StorageInterface {
       lastMessageToId: Value(conversation.lastMessage?.toId),
       lastMessageGroupId: Value(conversation.lastMessage?.groupId),
       lastMessageLocalPath: Value(conversation.lastMessage?.localPath),
+      isTop: Value(conversation.isTop ? 1 : 0),
+      isMute: Value(conversation.isMute ? 1 : 0),
     );
 
     try {
@@ -324,7 +326,10 @@ class DriftStorage implements StorageInterface {
       query.where((tbl) => tbl.isDeleted.equals(0));
     }
 
-    query.orderBy([(t) => OrderingTerm.desc(t.updateTime)]);
+    query.orderBy([
+      (t) => OrderingTerm.desc(t.isTop),
+      (t) => OrderingTerm.desc(t.updateTime),
+    ]);
 
     final rows = await query.get();
     print('[DriftStorage] ✅ getConversations 完成: 找到 ${rows.length} 个会话（已排除已删除记录）');
@@ -348,6 +353,8 @@ class DriftStorage implements StorageInterface {
               lastMessageToId: Value(conversation.lastMessage?.toId),
               lastMessageGroupId: Value(conversation.lastMessage?.groupId),
               lastMessageLocalPath: Value(conversation.lastMessage?.localPath),
+              isTop: Value(conversation.isTop ? 1 : 0),
+              isMute: Value(conversation.isMute ? 1 : 0),
             ));
   }
 
@@ -355,6 +362,20 @@ class DriftStorage implements StorageInterface {
   Future<void> updateUnreadCount(int conversationId, int count) async {
     await (_db.update(_db.conversations)..where((tbl) => tbl.id.equals(conversationId)))
         .write(ConversationsCompanion(unreadCount: Value(count)));
+  }
+
+  @override
+  Future<void> updateConversationFlags(
+    int conversationId, {
+    bool? isTop,
+    bool? isMute,
+  }) async {
+    if (isTop == null && isMute == null) return;
+    await (_db.update(_db.conversations)..where((tbl) => tbl.id.equals(conversationId)))
+        .write(ConversationsCompanion(
+              isTop: isTop != null ? Value(isTop ? 1 : 0) : const Value.absent(),
+              isMute: isMute != null ? Value(isMute ? 1 : 0) : const Value.absent(),
+            ));
   }
 
   @override
@@ -405,6 +426,8 @@ class DriftStorage implements StorageInterface {
       lastMessage: _buildLastMessage(row),
       unreadCount: row.unreadCount,
       updateTime: row.updateTime,
+      isTop: row.isTop == 1,
+      isMute: row.isMute == 1,
     );
   }
 
