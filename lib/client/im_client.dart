@@ -630,6 +630,68 @@ class IMClient {
     );
   }
 
+  Future<List<Message>> searchLocalMessages(String keyword, {int limit = 50}) async {
+    final userId = currentUserId;
+    final text = keyword.trim();
+    if (userId == null || text.isEmpty) return [];
+    return _storage.searchMessages(
+      keyword: text,
+      currentUserId: userId,
+      limit: limit,
+    );
+  }
+
+  Future<List<Message>> searchServerMessages(String keyword, {int limit = 30}) async {
+    final text = keyword.trim();
+    if (text.isEmpty) return [];
+    final rows = await _tokenManager.searchMessages(text, limit: limit);
+    final messages = <Message>[];
+    for (final row in rows) {
+      try {
+        messages.add(Message.fromJson(_normalizeSearchRow(row)));
+      } catch (e) {
+        _log.w('跳过无法解析的搜索结果: $e');
+      }
+    }
+    return messages;
+  }
+
+  Map<String, dynamic> _normalizeSearchRow(Map<String, dynamic> raw) {
+    int asInt(dynamic value) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      return int.tryParse('$value') ?? 0;
+    }
+
+    Map<String, dynamic>? sender;
+    final senderRaw = raw['senderInfo'];
+    if (senderRaw is Map) {
+      sender = Map<String, dynamic>.from(senderRaw);
+      if (sender['userId'] is num) {
+        sender['userId'] = (sender['userId'] as num).toInt();
+      }
+    }
+    final groupId = raw['groupId'] == null ? null : asInt(raw['groupId']);
+    return {
+      'id': asInt(raw['id']),
+      'mid': asInt(raw['mid']),
+      'seq': raw['seq'] == null ? null : asInt(raw['seq']),
+      'fromId': asInt(raw['fromId']),
+      'toId': asInt(raw['toId']),
+      'groupId': groupId == 0 ? null : groupId,
+      'content': raw['content']?.toString() ?? '',
+      'msgType': asInt(raw['msgType']),
+      'status': raw['status'] == null ? null : asInt(raw['status']),
+      'msgStatus': raw['msgStatus'],
+      'delivered': raw['delivered'],
+      'timestamp': raw['timestamp'] == null ? null : asInt(raw['timestamp']),
+      'senderInfo': sender,
+      'replyMsgId': raw['replyMsgId'],
+      'atUserIds': raw['atUserIds']?.toString(),
+      'extra': raw['extra'],
+    };
+  }
+
   Future<void> recallMessage(int messageId) async {
     await _messageService.recallMessage(messageId);
   }
@@ -1590,6 +1652,13 @@ class _FallbackStorage implements StorageInterface {
 
   @override
   Future<Message?> getMessageById(int messageId) async => null;
+
+  @override
+  Future<List<Message>> searchMessages({
+    required String keyword,
+    required int currentUserId,
+    int limit = 50,
+  }) async => [];
 
   @override
   Future<Message?> getMessageByMid(int mid) async => null;

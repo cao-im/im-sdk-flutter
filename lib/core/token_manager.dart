@@ -111,6 +111,14 @@ class TokenManager {
   /// 是否有有效的 AccessToken
   bool get hasValidToken => _accessToken != null && _accessToken!.isNotEmpty;
 
+  Future<List<Map<String, dynamic>>> searchMessages(String keyword, {int limit = 30}) async {
+    final token = _accessToken;
+    if (token == null || token.isEmpty) {
+      throw StateError('未登录');
+    }
+    return _httpClient.searchMessages(token, keyword, limit: limit);
+  }
+
   /// 是否有 RefreshToken
   bool get hasRefreshToken => _refreshToken != null && _refreshToken!.isNotEmpty;
 

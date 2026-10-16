@@ -140,6 +140,28 @@ class SdkHttpClient {
     }
   }
 
+  /// 搜索当前用户在服务端可见的聊天记录。
+  Future<List<Map<String, dynamic>>> searchMessages(
+    String token,
+    String keyword, {
+    int limit = 30,
+  }) async {
+    final response = await _dio.get(
+      '/api/message/search',
+      queryParameters: {'keyword': keyword, 'limit': limit},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final data = _parseResponse(response.data);
+    if (data is Map && data['code'] == 200 && data['data'] is List) {
+      return (data['data'] as List)
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+    final message = data is Map ? data['message']?.toString() : null;
+    throw StateError(message == null || message.isEmpty ? '搜索失败' : message);
+  }
+
   // ==================== 内部工具方法 ====================
 
   /// 解析服务端响应

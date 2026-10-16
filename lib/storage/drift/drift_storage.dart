@@ -73,6 +73,26 @@ class DriftStorage implements StorageInterface {
   }
 
   @override
+  Future<List<model.Message>> searchMessages({
+    required String keyword,
+    required int currentUserId,
+    int limit = 50,
+  }) async {
+    final text = keyword.trim().replaceAll('%', '').replaceAll('_', '');
+    if (text.isEmpty) return [];
+    final safeLimit = limit.clamp(1, 50);
+    final rows = await (_db.select(_db.messages)
+          ..where((tbl) =>
+              tbl.content.like('%$text%') &
+              tbl.msgType.isIn(const [0, 2]) &
+              tbl.status.equals(-2).not())
+          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..limit(safeLimit))
+        .get();
+    return rows.map(_toMessage).toList();
+  }
+
+  @override
   Future<List<model.Message>> getMessages({
     required int targetId,
     int? groupId,

@@ -6,6 +6,13 @@ abstract class StorageInterface {
 
   Future<int> insertMessage(Message message);
 
+  /// 在本地消息里按文本或文件名搜索。数据库已按用户隔离。
+  Future<List<Message>> searchMessages({
+    required String keyword,
+    required int currentUserId,
+    int limit = 50,
+  });
+
   Future<List<Message>> getMessages({
     required int targetId,
     int? groupId,

@@ -200,6 +200,13 @@ class ApiStorage implements StorageInterface {
   }
 
   @override
+  Future<List<model.Message>> searchMessages({
+    required String keyword,
+    required int currentUserId,
+    int limit = 50,
+  }) async => [];
+
+  @override
   Future<List<model_conv.Conversation>> getConversations(int userId) async {
     // 会话由客户端本地维护，不再从服务端获取
     return [];

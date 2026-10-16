@@ -67,6 +67,26 @@ class WebStorage implements StorageInterface {
   }
 
   @override
+  Future<List<Message>> searchMessages({
+    required String keyword,
+    required int currentUserId,
+    int limit = 50,
+  }) async {
+    final text = keyword.trim().toLowerCase().replaceAll('%', '').replaceAll('_', '');
+    if (text.isEmpty) return [];
+    final prefs = await _preferences;
+    final matched = _getMessagesList(prefs).where((map) {
+      final type = map['msg_type'];
+      if (type != 0 && type != 2) return false;
+      if (map['status'] == -2) return false;
+      final content = (map['content'] ?? '').toString().toLowerCase();
+      return content.contains(text);
+    }).toList();
+    matched.sort((a, b) => ((b['timestamp'] as int?) ?? 0).compareTo((a['timestamp'] as int?) ?? 0));
+    return matched.take(limit.clamp(1, 50)).map((map) => _mapToMessage(map)).toList();
+  }
+
+  @override
   Future<List<Message>> getMessages({
     required int targetId,
     int? groupId,
