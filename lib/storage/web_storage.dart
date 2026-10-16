@@ -368,6 +368,9 @@ class WebStorage implements StorageInterface {
       'delivered': message.delivered ? 1 : 0,
       'timestamp': message.timestamp,
       'local_path': message.localPath,
+      'reply_msg_id': message.replyMsgId,
+      'reply_preview': message.replyPreview,
+      'reply_sender_name': message.replySenderName,
     };
   }
 
@@ -385,6 +388,9 @@ class WebStorage implements StorageInterface {
       'delivered': (map['delivered'] as int? ?? 0) == 1,
       'timestamp': map['timestamp'],
       'localPath': map['local_path'],
+      'replyMsgId': map['reply_msg_id'],
+      'replyPreview': map['reply_preview'],
+      'replySenderName': map['reply_sender_name'],
     });
   }
 

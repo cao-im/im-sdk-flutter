@@ -534,6 +534,9 @@ class IMClient {
     int msgType = 0,
     String? senderNickname,
     String? senderAvatar,
+    int? replyMsgId,
+    String? replyPreview,
+    String? replySenderName,
   }) async {
     return _messageService.sendMessage(
       toId: toId,
@@ -541,6 +544,9 @@ class IMClient {
       msgType: msgType,
       senderNickname: senderNickname,
       senderAvatar: senderAvatar,
+      replyMsgId: replyMsgId,
+      replyPreview: replyPreview,
+      replySenderName: replySenderName,
     );
   }
 
@@ -579,6 +585,9 @@ class IMClient {
     int msgType = 0,
     String? senderNickname,
     String? senderAvatar,
+    int? replyMsgId,
+    String? replyPreview,
+    String? replySenderName,
   }) async {
     return _messageService.sendGroupMessage(
       groupId: groupId,
@@ -586,6 +595,9 @@ class IMClient {
       msgType: msgType,
       senderNickname: senderNickname,
       senderAvatar: senderAvatar,
+      replyMsgId: replyMsgId,
+      replyPreview: replyPreview,
+      replySenderName: replySenderName,
     );
   }
 

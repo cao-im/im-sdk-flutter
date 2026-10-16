@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/widgets.dart';
@@ -62,6 +64,8 @@ class DriftStorage implements StorageInterface {
       localPath: Value(message.localPath),
       senderNickname: Value(message.senderNickname),
       senderAvatar: Value(message.senderAvatar),
+      replyMsgId: Value(message.replyMsgId),
+      extra: Value(_encodeReplyExtra(message)),
     );
 
     return _db.into(_db.messages).insert(messageCompanion);
@@ -414,7 +418,36 @@ class DriftStorage implements StorageInterface {
       localPath: row.localPath,
       senderNickname: row.senderNickname,
       senderAvatar: row.senderAvatar,
+      replyMsgId: row.replyMsgId,
+      replyPreview: _replyFromExtra(row.extra, 'replyPreview'),
+      replySenderName: _replyFromExtra(row.extra, 'replySenderName'),
     );
+  }
+
+  String? _encodeReplyExtra(model.Message message) {
+    final preview = message.replyPreview;
+    final senderName = message.replySenderName;
+    if ((preview == null || preview.isEmpty) &&
+        (senderName == null || senderName.isEmpty)) {
+      return null;
+    }
+    return jsonEncode({
+      'replyPreview': preview,
+      'replySenderName': senderName,
+    });
+  }
+
+  String? _replyFromExtra(String? extra, String key) {
+    if (extra == null || extra.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(extra);
+      if (decoded is Map) {
+        final value = decoded[key];
+        if (value == null || value.toString().isEmpty) return null;
+        return value.toString();
+      }
+    } catch (_) {}
+    return null;
   }
 
   model_conv.Conversation _toConversation(Conversation row) {

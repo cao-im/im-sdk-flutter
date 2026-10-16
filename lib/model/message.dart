@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'sender_info.dart';
 
 enum MessageType {
@@ -57,6 +59,10 @@ class Message {
   final String? senderNickname;
   /// 发送者头像（冗余存储，避免频繁查询用户表）
   final String? senderAvatar;
+  /// 被引用消息的 mid
+  final int? replyMsgId;
+  final String? replyPreview;
+  final String? replySenderName;
 
   /// 服务端序号（完全由服务端生成，严格递增，用于增量离线同步）
   final int? seq;
@@ -78,6 +84,9 @@ class Message {
     this.groupInfo,
     this.senderNickname,
     this.senderAvatar,
+    this.replyMsgId,
+    this.replyPreview,
+    this.replySenderName,
   }) : timestamp = timestamp ?? DateTime.now().millisecondsSinceEpoch;
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -113,7 +122,37 @@ class Message {
           : null,
       senderNickname: senderNickname,
       senderAvatar: senderAvatar,
+      replyMsgId: _asInt(json['replyMsgId']),
+      replyPreview: _replyField(json, 'replyPreview'),
+      replySenderName: _replyField(json, 'replySenderName'),
     );
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
+  }
+
+  static String? _replyField(Map<String, dynamic> json, String key) {
+    final direct = json[key];
+    if (direct != null && direct.toString().isNotEmpty) {
+      return direct.toString();
+    }
+    Map<String, dynamic>? extraMap;
+    final extra = json['extra'];
+    if (extra is Map) {
+      extraMap = Map<String, dynamic>.from(extra);
+    } else if (extra is String && extra.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(extra);
+        if (decoded is Map<String, dynamic>) extraMap = decoded;
+      } catch (_) {}
+    }
+    final nested = extraMap?[key];
+    if (nested == null || nested.toString().isEmpty) return null;
+    return nested.toString();
   }
 
   Map<String, dynamic> toJson() {
@@ -132,6 +171,9 @@ class Message {
       'localPath': localPath,
       if (senderInfo != null) 'senderInfo': senderInfo!.toJson(),
       if (groupInfo != null) 'groupInfo': groupInfo!.toJson(),
+      if (replyMsgId != null) 'replyMsgId': replyMsgId,
+      if (replyPreview != null) 'replyPreview': replyPreview,
+      if (replySenderName != null) 'replySenderName': replySenderName,
     };
     print('📦 [Message.toJson] $json');
     return json;
@@ -145,6 +187,10 @@ class Message {
       'content': content,
       'msgType': msgType.value,
       if (mid != null) 'mid': mid,
+      if (replyMsgId != null && replyMsgId! > 0) 'replyMsgId': replyMsgId,
+      if (replyPreview != null && replyPreview!.isNotEmpty) 'replyPreview': replyPreview,
+      if (replySenderName != null && replySenderName!.isNotEmpty)
+        'replySenderName': replySenderName,
     };
     print('📤 [Message.toProtocolJson] type=${json['type']}, toId=${json['toId']}, msgType=${json['msgType']}, contentBytes=${content.length}');
     return json;
@@ -167,6 +213,9 @@ class Message {
     GroupInfo? groupInfo,
     String? senderNickname,
     String? senderAvatar,
+    int? replyMsgId,
+    String? replyPreview,
+    String? replySenderName,
   }) {
     return Message(
       id: id ?? this.id,
@@ -185,6 +234,9 @@ class Message {
       groupInfo: groupInfo ?? this.groupInfo,
       senderNickname: senderNickname ?? this.senderNickname,
       senderAvatar: senderAvatar ?? this.senderAvatar,
+      replyMsgId: replyMsgId ?? this.replyMsgId,
+      replyPreview: replyPreview ?? this.replyPreview,
+      replySenderName: replySenderName ?? this.replySenderName,
     );
   }
 

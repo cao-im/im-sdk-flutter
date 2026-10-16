@@ -8,6 +8,9 @@ abstract class MessageService {
     int? groupId,
     String? senderNickname,
     String? senderAvatar,
+    int? replyMsgId,
+    String? replyPreview,
+    String? replySenderName,
   });
 
   Future<Message> sendGroupMessage({
@@ -16,6 +19,9 @@ abstract class MessageService {
     int msgType = 0,
     String? senderNickname,
     String? senderAvatar,
+    int? replyMsgId,
+    String? replyPreview,
+    String? replySenderName,
   });
 
   Future<List<Message>> getHistoryMessages({
