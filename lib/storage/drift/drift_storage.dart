@@ -65,6 +65,7 @@ class DriftStorage implements StorageInterface {
       senderNickname: Value(message.senderNickname),
       senderAvatar: Value(message.senderAvatar),
       replyMsgId: Value(message.replyMsgId),
+      atUserIds: Value(message.atUserIds ?? ''),
       extra: Value(_encodeReplyExtra(message)),
     );
 
@@ -421,6 +422,7 @@ class DriftStorage implements StorageInterface {
       replyMsgId: row.replyMsgId,
       replyPreview: _replyFromExtra(row.extra, 'replyPreview'),
       replySenderName: _replyFromExtra(row.extra, 'replySenderName'),
+      atUserIds: row.atUserIds,
     );
   }
 

@@ -63,6 +63,7 @@ class Message {
   final int? replyMsgId;
   final String? replyPreview;
   final String? replySenderName;
+  final String? atUserIds;
 
   /// 服务端序号（完全由服务端生成，严格递增，用于增量离线同步）
   final int? seq;
@@ -87,6 +88,7 @@ class Message {
     this.replyMsgId,
     this.replyPreview,
     this.replySenderName,
+    this.atUserIds,
   }) : timestamp = timestamp ?? DateTime.now().millisecondsSinceEpoch;
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -125,6 +127,7 @@ class Message {
       replyMsgId: _asInt(json['replyMsgId']),
       replyPreview: _replyField(json, 'replyPreview'),
       replySenderName: _replyField(json, 'replySenderName'),
+      atUserIds: json['atUserIds']?.toString(),
     );
   }
 
@@ -174,6 +177,7 @@ class Message {
       if (replyMsgId != null) 'replyMsgId': replyMsgId,
       if (replyPreview != null) 'replyPreview': replyPreview,
       if (replySenderName != null) 'replySenderName': replySenderName,
+      if (atUserIds != null && atUserIds!.isNotEmpty) 'atUserIds': atUserIds,
     };
     print('📦 [Message.toJson] $json');
     return json;
@@ -191,6 +195,7 @@ class Message {
       if (replyPreview != null && replyPreview!.isNotEmpty) 'replyPreview': replyPreview,
       if (replySenderName != null && replySenderName!.isNotEmpty)
         'replySenderName': replySenderName,
+      if (atUserIds != null && atUserIds!.isNotEmpty) 'atUserIds': atUserIds,
     };
     print('📤 [Message.toProtocolJson] type=${json['type']}, toId=${json['toId']}, msgType=${json['msgType']}, contentBytes=${content.length}');
     return json;
@@ -216,6 +221,7 @@ class Message {
     int? replyMsgId,
     String? replyPreview,
     String? replySenderName,
+    String? atUserIds,
   }) {
     return Message(
       id: id ?? this.id,
@@ -237,6 +243,7 @@ class Message {
       replyMsgId: replyMsgId ?? this.replyMsgId,
       replyPreview: replyPreview ?? this.replyPreview,
       replySenderName: replySenderName ?? this.replySenderName,
+      atUserIds: atUserIds ?? this.atUserIds,
     );
   }
 

@@ -537,6 +537,7 @@ class IMClient {
     int? replyMsgId,
     String? replyPreview,
     String? replySenderName,
+    String? atUserIds,
   }) async {
     return _messageService.sendMessage(
       toId: toId,
@@ -547,6 +548,7 @@ class IMClient {
       replyMsgId: replyMsgId,
       replyPreview: replyPreview,
       replySenderName: replySenderName,
+      atUserIds: atUserIds,
     );
   }
 
@@ -588,6 +590,7 @@ class IMClient {
     int? replyMsgId,
     String? replyPreview,
     String? replySenderName,
+    String? atUserIds,
   }) async {
     return _messageService.sendGroupMessage(
       groupId: groupId,
@@ -598,6 +601,7 @@ class IMClient {
       replyMsgId: replyMsgId,
       replyPreview: replyPreview,
       replySenderName: replySenderName,
+      atUserIds: atUserIds,
     );
   }
 
@@ -1446,7 +1450,9 @@ class IMClient {
             targetId: targetId,
           );
 
-      final totalIncrement = (message.fromId != currentUserId ? 1 : 0) + extraUnreadCount;
+      final totalIncrement = message.msgType == MessageType.system
+          ? 0
+          : (message.fromId != currentUserId ? 1 : 0) + extraUnreadCount;
 
       final updatedConversation = existingConversation.copyWith(
         lastMessage: message,

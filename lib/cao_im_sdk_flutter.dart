@@ -12,6 +12,7 @@ export 'model/message.dart';
 export 'model/conversation.dart';
 export 'model/user.dart';
 export 'model/group.dart';
+export 'model/sender_info.dart';
 
 export 'service/message_service.dart';
 export 'service/conversation_service.dart';

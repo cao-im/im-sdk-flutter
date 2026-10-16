@@ -371,6 +371,7 @@ class WebStorage implements StorageInterface {
       'reply_msg_id': message.replyMsgId,
       'reply_preview': message.replyPreview,
       'reply_sender_name': message.replySenderName,
+      'at_user_ids': message.atUserIds,
     };
   }
 
@@ -391,6 +392,7 @@ class WebStorage implements StorageInterface {
       'replyMsgId': map['reply_msg_id'],
       'replyPreview': map['reply_preview'],
       'replySenderName': map['reply_sender_name'],
+      'atUserIds': map['at_user_ids'],
     });
   }
 
