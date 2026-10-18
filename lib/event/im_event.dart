@@ -57,6 +57,7 @@ class CallSignalEvent extends IMEvent {
   final int? peerId;
   final String? name;
   final String? reason;
+  final bool video;
   final Map<String, dynamic> payload;
 
   CallSignalEvent({
@@ -65,6 +66,7 @@ class CallSignalEvent extends IMEvent {
     this.peerId,
     this.name,
     this.reason,
+    this.video = false,
     this.payload = const {},
     super.timestamp,
   });

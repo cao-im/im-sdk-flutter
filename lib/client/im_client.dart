@@ -1236,11 +1236,12 @@ class IMClient {
     }
   }
 
-  void inviteCall(int toId, String callId) {
+  void inviteCall(int toId, String callId, {bool video = false}) {
     _connectionManager.sendMessage({
       'type': 'call_invite',
       'toId': toId,
       'callId': callId,
+      'video': video,
     });
   }
 
@@ -1276,6 +1277,7 @@ class IMClient {
       peerId: _asInt(data['peerId']),
       name: data['name']?.toString(),
       reason: data['reason']?.toString(),
+      video: data['video'] == true,
       payload: payload is Map ? Map<String, dynamic>.from(payload) : const {},
     ));
   }
