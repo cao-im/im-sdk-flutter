@@ -6,13 +6,44 @@ CaoIM 的 Flutter SDK。封装 WebSocket、心跳、断线重连、本地 SQLite
 
 ## 仓库一览
 
-| 仓库 | 作用 |
-|------|------|
-| im-server | 消息与长连接。好友、群、历史、已读、离线同步和一对一通话信令。端口 8080，库 `cao_im_db` |
-| app-server | 客户端注册、登录、个人资料和文件上传。端口 8081，库 `cao_im_app_server` |
-| im-admin | 运营后台：用户启停、群、消息检索、敏感词、系统配置、角色和审计。API 端口 8082，页面开发端口 5173，库 `cao_im_admin` |
-| im-sdk-flutter | 本仓库。Flutter SDK，负责 WebSocket、本地消息库、会话、群和通话信令，不包含界面 |
-| flutter-demo | 客户端。同一套代码运行在 Windows、macOS、Android、iOS 和 Web |
+| 仓库 | 作用 | GitHub | Gitee |
+|------|------|--------|-------|
+| im-server | 消息与长连接。好友、群、历史、已读、离线同步和一对一通话信令。端口 8080，库 `cao_im_db` | [im-server](https://github.com/cao-im/im-server) | [im-server](https://gitee.com/cao-im/im-server) |
+| app-server | 客户端注册、登录、个人资料和文件上传。端口 8081，库 `cao_im_app_server` | [app-server](https://github.com/cao-im/app-server) | [app-server](https://gitee.com/cao-im/app-server) |
+| im-admin | 运营后台：用户启停、群、消息检索、敏感词、系统配置、角色和审计。API 端口 8082，页面开发端口 5173，库 `cao_im_admin` | [im-admin](https://github.com/cao-im/im-admin) | [im-admin](https://gitee.com/cao-im/im-admin) |
+| im-sdk-flutter | 本仓库。Flutter SDK，负责 WebSocket、本地消息库、会话、群和通话信令，不包含界面 | [im-sdk-flutter](https://github.com/cao-im/im-sdk-flutter) | [im-sdk-flutter](https://gitee.com/cao-im/im-sdk-flutter) |
+| flutter-demo | 客户端。同一套代码运行在 Windows、macOS、Android、iOS 和 Web | [flutter-demo](https://github.com/cao-im/flutter-demo) | [flutter-demo](https://gitee.com/cao-im/flutter-demo) |
+
+## 消息收发流程
+
+文本和表情由 SDK 通过 WebSocket 发给 im-server。图片、语音、文件和短视频先上传到 app-server，消息里只保存文件地址。服务端写入 MySQL 后，对方在线就立即推送，不在线就等对方上线再拉取。接收方展示后，再回送达回执和已读回执。
+
+```mermaid
+flowchart LR
+  subgraph sendSide [发送方]
+    ui1[Windows / App / Web]
+    sdk1[im-sdk-flutter]
+  end
+  subgraph serviceSide [服务端]
+    app[app-server]
+    im[im-server]
+    db[(MySQL)]
+  end
+  subgraph recvSide [接收方]
+    sdk2[im-sdk-flutter]
+    ui2[Windows / App / Web]
+  end
+  ui1 -->|文本、表情| sdk1
+  ui1 -->|图片、语音、文件、视频| app
+  app -->|文件地址| ui1
+  sdk1 -->|WebSocket| im
+  im -->|保存消息| db
+  im -->|发送成功回执| sdk1
+  im -->|在线立即推送| sdk2
+  db -->|离线后拉取| sdk2
+  sdk2 --> ui2
+  ui2 -->|送达回执、已读回执| im
+```
 
 ## 客户端界面
 
@@ -71,18 +102,51 @@ CaoIM 的 Flutter SDK。封装 WebSocket、心跳、断线重连、本地 SQLite
   </tr>
 </table>
 
-## 能力
+## 功能特性
 
-- 连接 `ws://{host}:8080/api/ws?token={imToken}`，断线后指数退避重连
+连接
+
+- 连接 `ws://{host}:8080/api/ws?token={imToken}`
+- 断线后指数退避重连
 - 心跳默认 30 秒，长时间无响应视为断开
-- 私聊、群聊的发送、历史、撤回、已读和送达回执
-- 离线消息同步，Drift / SQLite 本地库
-- 本地和服务端消息搜索
-- 会话列表、置顶、免打扰、未读数
-- 建群、改资料、解散、拉人、踢人、转让群主
+
+消息
+
+- 私聊、群聊发送
+- 历史
+- 撤回
+- 已读
+- 送达回执
+- 离线消息同步
+- Drift / SQLite 本地库
+- 本地搜索
+- 服务端搜索
+
+会话与群
+
+- 会话列表
+- 置顶
+- 消息免打扰
+- 未读数
+- 建群、改资料、解散
+- 拉人、踢人、转让群主
 - 好友申请事件
-- 一对一通话信令：`inviteCall` 的 `video: true` 表示视频。SDK 只收发信令，不采集麦克风和摄像头
-- 事件总线：消息、连接、会话、群、好友、离线同步、`CallSignalEvent`
+
+通话信令
+
+- 一对一语音
+- 一对一视频。`inviteCall` 传入 `video: true`
+- 只收发信令，不采集麦克风和摄像头
+
+事件
+
+- 消息
+- 连接
+- 会话
+- 群
+- 好友
+- 离线同步
+- `CallSignalEvent`
 
 支持 Android、iOS、macOS、Windows、Web、Linux。Web 与移动端的本地存储实现不同，详见 `docs/`。
 
@@ -187,20 +251,40 @@ lib/
 docs/              # Web 与 Drift 存储说明
 ```
 
+## 使用协议
+
+源码公开，供学习和非商用免费使用。商用免费，但要先授权。完整条款见 [LICENSE](LICENSE)。
+
+| 场景 | 是否收费 | 是否需要联系 |
+|------|----------|----------------|
+| 学习、研究、个人使用、教学 | 免费 | 不需要 |
+| 非营利组织内部使用 | 免费 | 不需要 |
+| 公司产品、向客户交付、收费服务等商用 | 免费 | 需要，先取得授权 |
+
+MIT、Apache、GPL 都允许商用且不必通知作者，所以没有采用。未取得授权，请不要用于商用。
+
+## 已授权项目
+
+确认商用授权后，项目会写进 [已授权项目](docs/authorized-projects.md)。目录里展示项目名称、简介和公开链接，方便别人了解哪些产品在使用 CaoIM，也给这些项目一个公开展示的位置。
+
+| 项目 | 说明 | 链接 |
+|------|------|------|
+| 友你 | 免费同城征婚交友。友你是一款同城相亲、征婚交友应用。填写真实资料，查看今日推荐，或用捞捞随机遇见正在寻觅的人。本人找对象、父母帮子女登记、红娘入驻，都可以从这里开始。 | [小米应用商店](https://r.app.xiaomi.com/details?id=com.youni.mobile&ref=search) |
+| 友圈 | 友圈是一款以兴趣为核心的社交应用，覆盖游戏、二次元、艺术创作、树洞等兴趣圈子。在这里找到志同道合的伙伴，用图文、短视频记录生活，也看你关注的人最新发布的动态。 | [小米应用商店](https://r.app.xiaomi.com/details?id=com.youquan.mobile&ref=search) |
+| 一木林 | 一木林是一款轻量好用的手机实用工具箱，把日常高频工具收进一个应用：证件照、时光沙漏、密码保险箱、水印相机、图库、文件管理、计算器、指南针、水平仪、尺子、单位换算、图片压缩、手持弹幕、提词器等即点即用，少装一堆小 App，手机更干净。支持 Android 与鸿蒙。 | [小米应用商店](https://r.app.xiaomi.com/details?id=com.yimulin.mobile&ref=search) |
+
+申请时请说明项目名称、使用场景，以及可以公开的介绍或链接。
+
 ## 联系与支持
 
-有新功能、定制开发或合作意向，欢迎扫码加微信私信。
+商用授权、新功能、定制开发或合作，都欢迎扫码加微信。商用授权不收费。
 
 独立开发不易。如果这个项目对你有帮助，也可以通过微信或支付宝支持一下，你的认可是我继续更新的动力。
 
 <table>
   <tr>
-    <td align="center"><img src="docs/contact/wechat.jpg" alt="微信" width="220" /><br/><b>微信</b><br/>定制与合作</td>
+    <td align="center"><img src="docs/contact/wechat.jpg" alt="微信" width="220" /><br/><b>微信</b><br/>授权、定制与合作</td>
     <td align="center"><img src="docs/contact/wechat-pay.jpg" alt="微信支付" width="220" /><br/><b>微信支付</b></td>
     <td align="center"><img src="docs/contact/alipay.jpg" alt="支付宝" width="220" /><br/><b>支付宝</b></td>
   </tr>
 </table>
-
-## License
-
-MIT License
