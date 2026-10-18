@@ -51,6 +51,25 @@ class MessagesReadEvent extends IMEvent {
   });
 }
 
+class CallSignalEvent extends IMEvent {
+  final String action;
+  final String? callId;
+  final int? peerId;
+  final String? name;
+  final String? reason;
+  final Map<String, dynamic> payload;
+
+  CallSignalEvent({
+    required this.action,
+    this.callId,
+    this.peerId,
+    this.name,
+    this.reason,
+    this.payload = const {},
+    super.timestamp,
+  });
+}
+
 class ConnectionEvent extends IMEvent {
   final ConnectionEventType type;
 

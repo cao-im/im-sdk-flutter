@@ -930,6 +930,8 @@ class IMClient {
     } else if (type == 'group_offline_sync') {
       // ✅ 群聊离线消息同步响应：逐条处理，与实时 group_message 走相同链路
       _handleGroupOfflineSyncResponse(data);
+    } else if (type == 'call') {
+      _handleCall(data);
     } else if (type == 'group_history' || type == 'private_history') {
       // ✅ 历史消息响应：提取其中的群组信息并缓存（解决启动时群名称不显示的问题）
       _cacheGroupInfoFromHistoryMessages(data);
@@ -1232,6 +1234,56 @@ class IMClient {
     } catch (e) {
       _log.e('处理送达确认失败', error: e);
     }
+  }
+
+  void inviteCall(int toId, String callId) {
+    _connectionManager.sendMessage({
+      'type': 'call_invite',
+      'toId': toId,
+      'callId': callId,
+    });
+  }
+
+  void acceptCall(String callId) {
+    _connectionManager.sendMessage({'type': 'call_accept', 'callId': callId});
+  }
+
+  void rejectCall(String callId) {
+    _connectionManager.sendMessage({'type': 'call_reject', 'callId': callId});
+  }
+
+  void cancelCall(String callId) {
+    _connectionManager.sendMessage({'type': 'call_cancel', 'callId': callId});
+  }
+
+  void hangupCall(String callId) {
+    _connectionManager.sendMessage({'type': 'call_hangup', 'callId': callId});
+  }
+
+  void sendCallSignal(String callId, Map<String, dynamic> payload) {
+    _connectionManager.sendMessage({
+      'type': 'call_signal',
+      'callId': callId,
+      'payload': payload,
+    });
+  }
+
+  void _handleCall(Map<String, dynamic> data) {
+    final payload = data['payload'];
+    _eventBus.fire(CallSignalEvent(
+      action: data['action']?.toString() ?? '',
+      callId: data['callId']?.toString(),
+      peerId: _asInt(data['peerId']),
+      name: data['name']?.toString(),
+      reason: data['reason']?.toString(),
+      payload: payload is Map ? Map<String, dynamic>.from(payload) : const {},
+    ));
+  }
+
+  int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('${value ?? ''}');
   }
 
   /// 发送送达回执：通知服务端"我已收到这条消息"（供外部调用）
