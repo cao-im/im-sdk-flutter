@@ -635,6 +635,10 @@ class IMClient {
     );
   }
 
+  Future<List<Message>> listMediaMessages({int limit = 500}) {
+    return _storage.listMediaMessages(limit: limit);
+  }
+
   Future<List<Message>> searchLocalMessages(String keyword, {int limit = 50}) async {
     final userId = currentUserId;
     final text = keyword.trim();
@@ -1772,6 +1776,9 @@ class _FallbackStorage implements StorageInterface {
     required int currentUserId,
     int limit = 50,
   }) async => [];
+
+  @override
+  Future<List<Message>> listMediaMessages({int limit = 500}) async => [];
 
   @override
   Future<Message?> getMessageByMid(int mid) async => null;

@@ -125,6 +125,18 @@ class WebStorage implements StorageInterface {
   }
 
   @override
+  Future<List<Message>> listMediaMessages({int limit = 500}) async {
+    final prefs = await _preferences;
+    final matched = _getMessagesList(prefs).where((map) {
+      final type = map['msg_type'];
+      if (type != 1 && type != 2 && type != 4) return false;
+      return map['status'] != -2;
+    }).toList();
+    matched.sort((a, b) => ((b['timestamp'] as int?) ?? 0).compareTo((a['timestamp'] as int?) ?? 0));
+    return matched.take(limit.clamp(1, 500)).map(_mapToMessage).toList();
+  }
+
+  @override
   Future<List<Message>> getMessages({
     required int targetId,
     int? groupId,

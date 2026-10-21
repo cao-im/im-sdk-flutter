@@ -223,6 +223,9 @@ class ApiStorage implements StorageInterface {
   }
 
   @override
+  Future<List<model.Message>> listMediaMessages({int limit = 500}) async => [];
+
+  @override
   Future<List<model.Message>> searchMessages({
     required String keyword,
     required int currentUserId,

@@ -175,6 +175,18 @@ class DriftStorage implements StorageInterface {
   }
 
   @override
+  Future<List<model.Message>> listMediaMessages({int limit = 500}) async {
+    final safeLimit = limit.clamp(1, 500);
+    final rows = await (_db.select(_db.messages)
+          ..where((tbl) =>
+              tbl.msgType.isIn(const [1, 2, 4]) & tbl.status.equals(-2).not())
+          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..limit(safeLimit))
+        .get();
+    return rows.map(_toMessage).toList();
+  }
+
+  @override
   Future<List<model.Message>> getMessages({
     required int targetId,
     int? groupId,

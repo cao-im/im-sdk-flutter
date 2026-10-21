@@ -19,6 +19,9 @@ abstract class StorageInterface {
     int limit = 50,
   });
 
+  /// 本地图片、视频和文件消息，按时间从新到旧。
+  Future<List<Message>> listMediaMessages({int limit = 500});
+
   Future<List<Message>> getMessages({
     required int targetId,
     int? groupId,
