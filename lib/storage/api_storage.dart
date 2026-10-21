@@ -226,6 +226,9 @@ class ApiStorage implements StorageInterface {
   Future<List<model.Message>> listMediaMessages({int limit = 500}) async => [];
 
   @override
+  Future<void> updateMessageLocalPath(String midKey, String localPath) async {}
+
+  @override
   Future<List<model.Message>> searchMessages({
     required String keyword,
     required int currentUserId,

@@ -22,6 +22,9 @@ abstract class StorageInterface {
   /// 本地图片、视频和文件消息，按时间从新到旧。
   Future<List<Message>> listMediaMessages({int limit = 500});
 
+  /// 记下这条消息在本机的文件路径，方便之后直接打开。
+  Future<void> updateMessageLocalPath(String midKey, String localPath);
+
   Future<List<Message>> getMessages({
     required int targetId,
     int? groupId,

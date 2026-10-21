@@ -639,6 +639,10 @@ class IMClient {
     return _storage.listMediaMessages(limit: limit);
   }
 
+  Future<void> rememberLocalPath({required String midKey, required String path}) {
+    return _storage.updateMessageLocalPath(midKey, path);
+  }
+
   Future<List<Message>> searchLocalMessages(String keyword, {int limit = 50}) async {
     final userId = currentUserId;
     final text = keyword.trim();
@@ -1779,6 +1783,9 @@ class _FallbackStorage implements StorageInterface {
 
   @override
   Future<List<Message>> listMediaMessages({int limit = 500}) async => [];
+
+  @override
+  Future<void> updateMessageLocalPath(String midKey, String localPath) async {}
 
   @override
   Future<Message?> getMessageByMid(int mid) async => null;

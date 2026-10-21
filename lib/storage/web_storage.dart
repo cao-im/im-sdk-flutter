@@ -137,6 +137,19 @@ class WebStorage implements StorageInterface {
   }
 
   @override
+  Future<void> updateMessageLocalPath(String midKey, String localPath) async {
+    final key = midKey.trim();
+    final path = localPath.trim();
+    if (key.isEmpty || path.isEmpty) return;
+    final prefs = await _preferences;
+    final messages = _getMessagesList(prefs);
+    final index = messages.indexWhere((item) => '${item['mid_raw'] ?? item['mid']}' == key);
+    if (index == -1) return;
+    messages[index]['local_path'] = path;
+    await _saveMessagesList(prefs, messages);
+  }
+
+  @override
   Future<List<Message>> getMessages({
     required int targetId,
     int? groupId,

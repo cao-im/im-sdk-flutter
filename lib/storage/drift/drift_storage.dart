@@ -187,6 +187,18 @@ class DriftStorage implements StorageInterface {
   }
 
   @override
+  Future<void> updateMessageLocalPath(String midKey, String localPath) async {
+    final key = midKey.trim();
+    final path = localPath.trim();
+    if (key.isEmpty || path.isEmpty) return;
+    final asInt = IdLiteral.asInt(key);
+    final match = _db.messages.midRaw.equals(key) |
+        (asInt != null && asInt > 0 ? _db.messages.mid.equals(asInt) : const Constant(false));
+    await (_db.update(_db.messages)..where((tbl) => match))
+        .write(MessagesCompanion(localPath: Value(path)));
+  }
+
+  @override
   Future<List<model.Message>> getMessages({
     required int targetId,
     int? groupId,
