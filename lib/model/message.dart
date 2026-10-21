@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../utils/id_literal.dart';
 import 'sender_info.dart';
 
 enum MessageType {
@@ -44,6 +45,9 @@ class Message {
   final int? id;
   /// 消息全局唯一ID（客户端生成，雪花算法），0表示未分配
   final int? mid;
+
+  /// [mid] 的十进制原文。Web 同步和去重使用这个值。
+  final String? midLiteral;
   final int fromId;
   final int toId;
   final int? groupId;
@@ -69,10 +73,15 @@ class Message {
   /// 服务端序号（完全由服务端生成，严格递增，用于增量离线同步）
   final int? seq;
 
+  /// [seq] 的十进制原文。群离线游标使用这个值。
+  final String? seqLiteral;
+
   Message({
     this.id,
     this.mid,
+    this.midLiteral,
     this.seq,
+    this.seqLiteral,
     required this.fromId,
     required this.toId,
     this.groupId,
@@ -105,12 +114,14 @@ class Message {
     }
     
     return Message(
-      id: json['id'],
-      mid: json['mid'],
-      seq: json['seq'],
-      fromId: json['fromId'] ?? 0,
-      toId: json['toId'] ?? 0,
-      groupId: json['groupId'],
+      id: IdLiteral.asInt(json['id']),
+      mid: IdLiteral.asInt(json['mid']),
+      midLiteral: IdLiteral.text(json['mid']),
+      seq: IdLiteral.asInt(json['seq']),
+      seqLiteral: IdLiteral.text(json['seq']),
+      fromId: IdLiteral.asInt(json['fromId']) ?? 0,
+      toId: IdLiteral.asInt(json['toId']) ?? 0,
+      groupId: IdLiteral.asInt(json['groupId']),
       content: json['content'] ?? '',
       msgType: MessageType.fromValue(json['msgType'] ?? 0),
       status: statusFromPayload(json),
@@ -125,18 +136,11 @@ class Message {
           : null,
       senderNickname: senderNickname,
       senderAvatar: senderAvatar,
-      replyMsgId: _asInt(json['replyMsgId']),
+      replyMsgId: IdLiteral.asInt(json['replyMsgId']),
       replyPreview: _replyField(json, 'replyPreview'),
       replySenderName: _replyField(json, 'replySenderName'),
       atUserIds: json['atUserIds']?.toString(),
     );
-  }
-
-  static int? _asInt(dynamic value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value.toString());
   }
 
   static String? _replyField(Map<String, dynamic> json, String key) {
@@ -162,8 +166,8 @@ class Message {
   Map<String, dynamic> toJson() {
     final json = {
       'id': id,
-      'mid': mid,
-      'seq': seq,
+      'mid': midKey ?? mid,
+      'seq': seqKey ?? seq,
       'fromId': fromId,
       'toId': toId,
       'groupId': groupId,
@@ -191,7 +195,7 @@ class Message {
       if (groupId != null) 'groupId': groupId,  // 群聊时单独传 groupId 字段
       'content': content,
       'msgType': msgType.value,
-      if (mid != null) 'mid': mid,
+      if (midKey != null) 'mid': midKey,
       if (replyMsgId != null && replyMsgId! > 0) 'replyMsgId': replyMsgId,
       if (replyPreview != null && replyPreview!.isNotEmpty) 'replyPreview': replyPreview,
       if (replySenderName != null && replySenderName!.isNotEmpty)
@@ -202,10 +206,26 @@ class Message {
     return json;
   }
 
+  /// 去重和送达回执使用的 mid。优先原文，避免 Web 把雪花 ID 舍入后再比较。
+  String? get midKey {
+    if (IdLiteral.isPositive(midLiteral)) return midLiteral;
+    if (mid != null && mid! > 0) return mid.toString();
+    return null;
+  }
+
+  /// 群离线游标使用的 seq 原文。
+  String? get seqKey {
+    if (IdLiteral.isPositive(seqLiteral)) return seqLiteral;
+    if (seq != null && seq! > 0) return seq.toString();
+    return null;
+  }
+
   Message copyWith({
     int? id,
     int? mid,
+    String? midLiteral,
     int? seq,
+    String? seqLiteral,
     int? fromId,
     int? toId,
     int? groupId,
@@ -227,7 +247,9 @@ class Message {
     return Message(
       id: id ?? this.id,
       mid: mid ?? this.mid,
+      midLiteral: midLiteral ?? this.midLiteral,
       seq: seq ?? this.seq,
+      seqLiteral: seqLiteral ?? this.seqLiteral,
       fromId: fromId ?? this.fromId,
       toId: toId ?? this.toId,
       groupId: groupId ?? this.groupId,

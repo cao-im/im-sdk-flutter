@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../model/conversation.dart' as model_conv;
 import '../../model/message.dart' as model;
+import '../../utils/id_literal.dart';
 import '../storage_interface.dart';
 import 'app_database.dart';
 
@@ -40,6 +41,8 @@ class DriftStorage implements StorageInterface {
         print('[DriftStorage] ${_platformLabel()} 平台: NativeDatabase (文件持久化)');
       }
 
+      await _removeDuplicateMessages();
+      await _ensureMessageIdentityIndexes();
       _isInitialized = true;
     } catch (e, stackTrace) {
       print('[DriftStorage] ❌ 初始化失败: $e');
@@ -67,9 +70,88 @@ class DriftStorage implements StorageInterface {
       replyMsgId: Value(message.replyMsgId),
       atUserIds: Value(message.atUserIds ?? ''),
       extra: Value(_encodeReplyExtra(message)),
+      midRaw: Value(message.midKey),
+      seqRaw: Value(message.seqKey),
     );
 
     return _db.into(_db.messages).insert(messageCompanion);
+  }
+
+  @override
+  Future<bool> saveIncomingMessage(model.Message message) async {
+    final existing = await _findSameMessage(message);
+    if (existing != null) {
+      await _backfillIdentity(existing, message);
+      return false;
+    }
+    await insertMessage(message);
+    return true;
+  }
+
+  Future<model.Message?> _findSameMessage(model.Message message) async {
+    final key = message.midKey;
+    if (key == null) return null;
+    return getMessageByMidKey(key);
+  }
+
+  Future<void> _backfillIdentity(model.Message existing, model.Message incoming) async {
+    final localId = existing.id;
+    final midKey = incoming.midKey;
+    final seqKey = incoming.seqKey;
+    if (localId == null) return;
+    final sameMid = midKey == null || midKey == existing.midKey;
+    final sameSeq = seqKey == null || seqKey == existing.seqKey;
+    if (sameMid && sameSeq) return;
+
+    await (_db.update(_db.messages)..where((tbl) => tbl.id.equals(localId))).write(
+      MessagesCompanion(
+        midRaw: midKey == null ? const Value.absent() : Value(midKey),
+        seqRaw: seqKey == null ? const Value.absent() : Value(seqKey),
+        seq: incoming.seq == null ? const Value.absent() : Value(incoming.seq),
+      ),
+    );
+  }
+
+  Future<void> _removeDuplicateMessages() async {
+    final rows = await (_db.select(_db.messages)
+          ..orderBy([(t) => OrderingTerm.asc(t.id)]))
+        .get();
+    final seen = <String>{};
+    final removeIds = <int>[];
+    for (final row in rows) {
+      final keys = <String>[];
+      if (row.mid > 0) keys.add('i${row.mid}');
+      final raw = row.midRaw;
+      if (raw != null && IdLiteral.isPositive(raw)) keys.add('s$raw');
+      if (keys.isEmpty) continue;
+      if (keys.any(seen.contains)) {
+        removeIds.add(row.id);
+        continue;
+      }
+      seen.addAll(keys);
+    }
+    if (removeIds.isEmpty) return;
+
+    const chunkSize = 200;
+    for (var start = 0; start < removeIds.length; start += chunkSize) {
+      final end = start + chunkSize < removeIds.length ? start + chunkSize : removeIds.length;
+      final chunk = removeIds.sublist(start, end);
+      await (_db.delete(_db.messages)..where((tbl) => tbl.id.isIn(chunk))).go();
+    }
+    print('[DriftStorage] 已清理重复消息 ${removeIds.length} 条');
+  }
+
+  Future<void> _ensureMessageIdentityIndexes() async {
+    try {
+      await _db.customStatement(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_mid ON messages (mid) WHERE mid > 0',
+      );
+      await _db.customStatement(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_mid_raw ON messages (mid_raw) WHERE mid_raw IS NOT NULL AND mid_raw != ''",
+      );
+    } catch (e) {
+      print('[DriftStorage] 消息唯一索引未建立: $e');
+    }
   }
 
   @override
@@ -163,6 +245,23 @@ class DriftStorage implements StorageInterface {
   }
 
   @override
+  Future<String?> getMaxSeqLiteral(int groupId) async {
+    final rows = await (_db.selectOnly(_db.messages)
+          ..addColumns([_db.messages.seq, _db.messages.seqRaw])
+          ..where(_db.messages.groupId.equals(groupId)))
+        .get();
+    final literals = <String?>[];
+    for (final row in rows) {
+      literals.add(row.read(_db.messages.seqRaw));
+      final seq = row.read(_db.messages.seq);
+      if (seq != null && seq > 0) literals.add(seq.toString());
+    }
+    final maxLiteral = IdLiteral.maxOf(literals);
+    if (!IdLiteral.isPositive(maxLiteral)) return null;
+    return maxLiteral;
+  }
+
+  @override
   Future<model.Message?> getMessageById(int messageId) async {
     final rows = await (_db.select(_db.messages)
           ..where((tbl) => tbl.id.equals(messageId))
@@ -183,7 +282,7 @@ class DriftStorage implements StorageInterface {
   @override
   Future<model.Message?> getMessageByMid(int mid) async {
     final rows = await (_db.select(_db.messages)
-          ..where((tbl) => tbl.mid.equals(mid))
+          ..where((tbl) => tbl.mid.equals(mid) | tbl.midRaw.equals(mid.toString()))
           ..limit(1))
         .get();
 
@@ -192,13 +291,39 @@ class DriftStorage implements StorageInterface {
   }
 
   @override
+  Future<model.Message?> getMessageByMidKey(String midKey) async {
+    if (!IdLiteral.isPositive(midKey)) return null;
+    final byRaw = await (_db.select(_db.messages)
+          ..where((tbl) => tbl.midRaw.equals(midKey))
+          ..limit(1))
+        .get();
+    if (byRaw.isNotEmpty) return _toMessage(byRaw.first);
+
+    final asInt = IdLiteral.asInt(midKey);
+    if (asInt == null || asInt <= 0) return null;
+    final legacy = await (_db.select(_db.messages)
+          ..where((tbl) => tbl.mid.equals(asInt))
+          ..limit(1))
+        .get();
+    if (legacy.isEmpty) return null;
+    return _toMessage(legacy.first);
+  }
+
+  @override
   Future<void> updateMessage(model.Message message) async {
     // 使用 mid 作为匹配条件（mid 是稳定的，而 id 在 send_confirmation 后会从本地ID变为服务端ID）
-    if (message.mid == null || message.mid == 0) return;
-    // 注意：不更新 id 字段（数据库自增主键），只更新其他字段
-    await (_db.update(_db.messages)..where((tbl) => tbl.mid.equals(message.mid!)))
+    final key = message.midKey;
+    final mid = message.mid;
+    if (key == null && (mid == null || mid == 0)) return;
+    final match = key != null
+        ? _db.messages.midRaw.equals(key) |
+            (mid != null && mid > 0 ? _db.messages.mid.equals(mid) : const Constant(false))
+        : _db.messages.mid.equals(mid!);
+    await (_db.update(_db.messages)..where((tbl) => match))
         .write(MessagesCompanion(
-              seq: Value(message.seq),
+              seq: message.seq == null ? const Value.absent() : Value(message.seq),
+              seqRaw: message.seqKey == null ? const Value.absent() : Value(message.seqKey),
+              midRaw: message.midKey == null ? const Value.absent() : Value(message.midKey),
               status: Value(message.status.value),
             ));
   }
@@ -427,7 +552,9 @@ class DriftStorage implements StorageInterface {
     return model.Message(
       id: row.id,
       mid: row.mid,
+      midLiteral: row.midRaw,
       seq: row.seq,
+      seqLiteral: row.seqRaw,
       fromId: row.fromId,
       toId: row.toId,
       groupId: row.groupId,

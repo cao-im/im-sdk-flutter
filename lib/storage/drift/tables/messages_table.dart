@@ -9,8 +9,14 @@ class Messages extends Table {
   /// 消息全局唯一ID(雪花算法生成，0表示待分配)
   IntColumn get mid => integer().withDefault(const Constant(0))();
 
+  /// mid 的十进制原文。Web 无法用 JSON 数字精确保存雪花 ID，去重以这个字段为准。
+  TextColumn get midRaw => text().nullable()();
+
   /// 服务端序号（完全由服务端生成，严格递增，用于增量离线同步）
   IntColumn get seq => integer().nullable()();
+
+  /// seq 的十进制原文。群离线增量游标使用这个字段，避免 Web 精度丢失。
+  TextColumn get seqRaw => text().nullable()();
 
   /// 发送者用户ID
   IntColumn get fromId => integer()();

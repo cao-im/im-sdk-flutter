@@ -234,12 +234,11 @@ class HybridMessageSync {
         final groupIdInt = groupId is int ? groupId : int.tryParse(groupId.toString()) ?? 0;
         if (groupIdInt <= 0) continue;
 
-        // ② 查询本地该群的最大 seq（服务端序号，严格递增）
-        // 使用 MAX(seq) 而非最后一条消息的 seq，因为本地先存的消息 seq 可能为 NULL
-        int sinceSeq = 0;
+        // ② 查询本地该群的最大 seq 原文。Web 上雪花 seq 不能走 JSON 数字。
+        var sinceSeq = '0';
         try {
-          final maxSeq = await _dbHelper.getMaxSeq(groupIdInt);
-          if (maxSeq != null && maxSeq > 0) {
+          final maxSeq = await _dbHelper.getMaxSeqLiteral(groupIdInt);
+          if (maxSeq != null && maxSeq.isNotEmpty && maxSeq != '0') {
             sinceSeq = maxSeq;
           }
         } catch (e) {
@@ -445,16 +444,14 @@ class HybridMessageSync {
         }
         uniqueIds.add(message.id!);
 
-        final existing = await _getMessageById(message.id!);
-        if (existing != null) {
-          continue;
+        final inserted = await _dbHelper.saveIncomingMessage(message);
+
+        // 已在本地的消息也要补送达回执，否则服务端 delivered 一直是 0，下次登录还会下发。
+        if (message.midKey != null) {
+          _client.sendDeliveryAck(message.mid ?? 0, midLiteral: message.midKey);
         }
-
-        await _dbHelper.insertMessage(message);
-
-        // 离线消息拉取后自动发送送达回执，标记已送达（避免下次重连重复拉取）
-        if (message.mid != null && message.mid! > 0) {
-          _client.sendDeliveryAck(message.mid!);
+        if (!inserted) {
+          continue;
         }
 
         for (final listener in _client.messageListeners) {
@@ -471,15 +468,6 @@ class HybridMessageSync {
     }
 
     return processedCount;
-  }
-
-  Future<Message?> _getMessageById(int messageId) async {
-    try {
-      return await _dbHelper.getMessageById(messageId);
-    } catch (e) {
-      _log.e('查询消息失败, messageId=$messageId', error: e);
-      return null;
-    }
   }
 
   int _getMaxMessageId(List<Map<String, dynamic>> messages) {

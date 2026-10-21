@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../client/im_client.dart';
 import '../model/conversation.dart' as model_conv;
 import '../model/message.dart' as model;
+import '../utils/id_literal.dart';
 import '../utils/network_log_interceptor.dart';
 import 'storage_interface.dart';
 
@@ -116,6 +117,28 @@ class ApiStorage implements StorageInterface {
       return model.Message.fromJson(json);
     }
     return null;
+  }
+
+  @override
+  Future<bool> saveIncomingMessage(model.Message message) async {
+    final existing = await getMessageByMidKey(message.midKey ?? '');
+    if (existing != null) return false;
+    await insertMessage(message);
+    return true;
+  }
+
+  @override
+  Future<model.Message?> getMessageByMidKey(String midKey) async {
+    final mid = IdLiteral.asInt(midKey);
+    if (mid == null || mid <= 0) return null;
+    return getMessageByMid(mid);
+  }
+
+  @override
+  Future<String?> getMaxSeqLiteral(int groupId) async {
+    final seq = await getMaxSeq(groupId);
+    if (seq == null || seq <= 0) return null;
+    return seq.toString();
   }
 
   @override

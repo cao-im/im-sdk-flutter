@@ -17,6 +17,7 @@ import '../model/group.dart';
 import '../model/user.dart';
 import '../storage/storage_factory.dart';
 import '../storage/storage_interface.dart';
+import '../utils/id_literal.dart';
 import '../utils/logger.dart';
 import '../service/message_service_impl.dart';
 import '../service/conversation_service_impl.dart';
@@ -110,6 +111,9 @@ class IMClient {
   late ConversationServiceImpl _conversationService;
   late GroupServiceImpl _groupService;
   HybridMessageSync? _hybridSync;
+  final Map<int, int> _groupOfflineRounds = {};
+  static const int _groupOfflinePageSize = 50;
+  static const int _groupOfflineMaxRounds = 40;
 
   /// 已读回执管理器（支持断网缓存+重连补发）
   ReadReceiptManager? _readReceiptManager;
@@ -231,6 +235,7 @@ class IMClient {
     _connectionSub = _connectionManager.onStatusChanged.listen((status) {
       switch (status) {
         case ConnectionStatus.connected:
+          _groupOfflineRounds.clear();
           for (var listener in _connectionListeners) {
             listener.onConnected();
           }
@@ -885,28 +890,9 @@ class IMClient {
         _groupService.cacheGroupFromInfo(message.groupInfo!);
       }
 
-      // ✅ 先保存到本地存储（确保数据持久化）
-      _storage.insertMessage(message).then((_) {
-        // 保存成功后，再触发事件和更新会话
-        for (var listener in _messageListeners) {
-          listener.onMessageReceived(message);
-        }
-        _eventBus.fire(MessageReceivedEvent(message: message));
-        _updateConversationFromMessage(message);
-      }).catchError((e) {
-        _log.e('[IMClient] 保存收到的消息失败', error: e);
-        // 即使保存失败，也要通知 UI 和更新会话
-        for (var listener in _messageListeners) {
-          listener.onMessageReceived(message);
-        }
-        _eventBus.fire(MessageReceivedEvent(message: message));
-        _updateConversationFromMessage(message);
-      });
-
-      // ✅ 接收方自动发送送达回执（delivery_ack）
-      // 仅对发给当前用户的消息（非自己发的）发送送达确认
-      if (message.mid != null && message.mid! > 0 && currentUserId != null) {
-        _sendDeliveryAck(message.mid!);
+      _rememberIncomingMessage(message);
+      if (message.midKey != null && currentUserId != null) {
+        _sendDeliveryAck(message.mid ?? 0, midLiteral: message.midKey);
       }
     } else if (type == 'read_receipt') {
       _handleReadReceipt(data);
@@ -969,74 +955,112 @@ class IMClient {
     }
   }
 
-  /// 处理群聊离线消息同步响应：批量处理，避免逐条触发事件导致竞态条件
+  /// 处理群聊离线消息同步响应：只把本地没有的消息交给界面。
   void _handleGroupOfflineSyncResponse(Map<String, dynamic> data) {
+    _applyGroupOfflineSync(data);
+  }
+
+  Future<void> _applyGroupOfflineSync(Map<String, dynamic> data) async {
     try {
       final messages = data['messages'];
       if (messages is! List || messages.isEmpty) return;
 
       final groupId = data['groupId'];
       final groupIdInt = groupId is int ? groupId : int.tryParse(groupId.toString()) ?? 0;
+      final sinceSeq = IdLiteral.text(data['sinceSeq']) ?? '0';
       _log.i('📥 [IMClient] 收到群聊离线同步响应: groupId=$groupIdInt, 消息数=${messages.length}');
 
-      Message? lastMessage;
-      int successCount = 0;
+      Message? newest;
+      var newIncoming = 0;
+      String? maxSeq = sinceSeq;
 
       for (final msgData in messages) {
         if (msgData is! Map<String, dynamic>) continue;
 
         try {
           final message = Message.fromJson(msgData);
+          if (IdLiteral.greaterThan(message.seqKey, maxSeq)) {
+            maxSeq = message.seqKey;
+          }
 
-          // 缓存群组信息
           if (message.groupId != null && message.groupId! > 0 && message.groupInfo != null) {
             _groupService.cacheGroupFromInfo(message.groupInfo!);
           }
 
-          // 存入本地存储（去重）
-          _storage.insertMessage(message).then((_) {
-            // 只通知聊天页面的 listener（用于增量显示消息列表），不触发 EventBus
-            for (var listener in _messageListeners) {
-              listener.onMessageReceived(message);
-            }
+          final inserted = await _storage.saveIncomingMessage(message);
+          if (message.midKey != null && currentUserId != null) {
+            _sendDeliveryAck(message.mid ?? 0, midLiteral: message.midKey);
+          }
+          if (!inserted) continue;
 
-            // 发送送达回执
-            if (message.mid != null && message.mid! > 0 && currentUserId != null) {
-              _sendDeliveryAck(message.mid!);
-            }
-          }).catchError((e) {
-            // 存储失败也通知 UI
-            for (var listener in _messageListeners) {
-              listener.onMessageReceived(message);
-            }
-          });
-
-          lastMessage = message;
-          successCount++;
+          for (var listener in _messageListeners) {
+            listener.onMessageReceived(message);
+          }
+          final fromOther = currentUserId != null &&
+              message.fromId != currentUserId &&
+              message.msgType != MessageType.system;
+          if (fromOther) newIncoming++;
+          if (newest == null || message.timestamp >= newest.timestamp) {
+            newest = message;
+          }
         } catch (e) {
           _log.w('[IMClient] 处理单条群聊离线消息失败（非致命）: $e');
         }
       }
 
-      // ✅ 批量处理完成后，只做一次会话更新（避免多次 loadConversations 竞态）
-      if (lastMessage != null && successCount > 0) {
-        _log.i('✅ [IMClient] 群聊离线消息同步处理完成: 成功$successCount条, 统一会话更新');
-        _updateConversationFromMessage(lastMessage!, extraUnreadCount: successCount - 1);
-
-        // 触发一次会话列表刷新（让 ChatProvider 更新未读数和 lastMessage）
-        _eventBus.fire(ConversationUpdatedEvent(conversation: Conversation(
-          id: -1,
-          userId: currentUserId ?? 0,
-          targetType: TargetType.group,
-          targetId: groupIdInt,
-          unreadCount: successCount,
-        )));
+      if (newest != null && newIncoming > 0) {
+        final newestCounts = newest.fromId != currentUserId &&
+                newest.msgType != MessageType.system
+            ? 1
+            : 0;
+        final extra = newIncoming - newestCounts;
+        _log.i('✅ [IMClient] 群聊离线消息同步处理完成: 新消息$newIncoming条');
+        await _updateConversationFromMessage(
+          newest,
+          extraUnreadCount: extra < 0 ? 0 : extra,
+        );
       } else {
         _log.i('✅ [IMClient] 群聊离线消息同步处理完成（无新消息）');
+      }
+
+      final hasMore = data['hasMore'] == true;
+      final rounds = (_groupOfflineRounds[groupIdInt] ?? 0) + 1;
+      _groupOfflineRounds[groupIdInt] = rounds;
+      final nextSeq = maxSeq;
+      if (hasMore &&
+          rounds < _groupOfflineMaxRounds &&
+          groupIdInt > 0 &&
+          nextSeq != null &&
+          IdLiteral.greaterThan(nextSeq, sinceSeq) &&
+          _connectionManager.isConnected) {
+        _requestGroupOfflineSync(groupIdInt, nextSeq);
       }
     } catch (e) {
       _log.e('[IMClient] 处理群聊离线同步响应失败: $e', error: e);
     }
+  }
+
+  void _requestGroupOfflineSync(int groupId, String sinceSeq) {
+    _connectionManager.sendMessage({
+      'type': 'group_offline_sync',
+      'groupId': groupId,
+      'sinceSeq': sinceSeq,
+      'limit': _groupOfflinePageSize,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  void _rememberIncomingMessage(Message message) {
+    _storage.saveIncomingMessage(message).then((inserted) {
+      if (!inserted) return;
+      for (var listener in _messageListeners) {
+        listener.onMessageReceived(message);
+      }
+      _eventBus.fire(MessageReceivedEvent(message: message));
+      _updateConversationFromMessage(message);
+    }).catchError((e) {
+      _log.e('[IMClient] 保存收到的消息失败', error: e);
+    });
   }
 
   void _handleOfflineMessages(Map<String, dynamic> data) {
@@ -1106,12 +1130,17 @@ class IMClient {
         return;
       }
 
-      final msgMid = messageId is int
-          ? messageId
-          : int.parse(messageId.toString());
+      final msgMid = IdLiteral.asInt(messageId);
+      if (msgMid == null) {
+        _log.w('recall_message 的 messageId 无法解析: $messageId');
+        return;
+      }
 
-      // 使用 mid 查找消息（服务器发送的是 mid，不是本地 id）
-      final existingMessage = await _messageService.getMessageByMid(msgMid);
+      final midKey = IdLiteral.text(messageId);
+      final existingMessage = midKey == null
+          ? await _messageService.getMessageByMid(msgMid)
+          : await _storage.getMessageByMidKey(midKey) ??
+              await _messageService.getMessageByMid(msgMid);
 
       if (existingMessage != null &&
           existingMessage.status != MessageStatus.recalled) {
@@ -1134,9 +1163,7 @@ class IMClient {
   void _handleServerError(Map<String, dynamic> data) {
     final reason = data['message']?.toString() ?? '操作失败';
     final rawMid = data['mid'];
-    final mid = rawMid is int
-        ? rawMid
-        : int.tryParse(rawMid?.toString() ?? '');
+    final mid = IdLiteral.asInt(rawMid);
 
     _log.w('⚠️ [IMClient] 收到服务端 error: $reason, mid=$mid');
 
@@ -1162,16 +1189,20 @@ class IMClient {
   /// 处理服务端发送确认：用 mid 匹配本地消息，更新状态为已送达/已发送
   void _handleSendConfirmation(Map<String, dynamic> data) {
     try {
-      final mid = data['mid'] ?? data['messageId'];
+      final rawMid = data['mid'] ?? data['messageId'];
       final serverId = data['id'];
-      final serverSeq = data['seq'];  // 服务端生成的雪花序号
+      final serverSeq = data['seq'];
       final statusStr = data['status'] ?? 'sent';
-      _log.i('📤 [IMClient] 收到 send_confirmation, mid=$mid, serverId=$serverId, seq=$serverSeq, status=$statusStr');
+      final midKey = IdLiteral.text(rawMid);
+      final mid = IdLiteral.asInt(rawMid);
+      final seqKey = IdLiteral.text(serverSeq);
+      final seq = IdLiteral.asInt(serverSeq);
+      _log.i('📤 [IMClient] 收到 send_confirmation, mid=$midKey, serverId=$serverId, seq=$seqKey, status=$statusStr');
 
-      if (mid == null) return;
+      if (midKey == null && mid == null) return;
 
-      // 用 mid 查找本地消息并更新
-      _storage.getMessageByMid(mid).then((localMessage) async {
+      _storage.getMessageByMidKey(midKey ?? '').then((byKey) async {
+        final localMessage = byKey ?? (mid == null ? null : await _storage.getMessageByMid(mid));
         if (localMessage == null) {
           _log.w('⚠️ [IMClient] 未找到 mid=$mid 对应的本地消息');
           return;
@@ -1194,7 +1225,8 @@ class IMClient {
         // （seq 是服务端雪花ID，用于离线增量同步的基准，必须写回本地）
         // 注意：不更新 id 字段（数据库自增主键），只更新 seq 和 status
         final updatedMessage = localMessage.copyWith(
-          seq: serverSeq ?? localMessage.seq,
+          seq: seq ?? localMessage.seq,
+          seqLiteral: seqKey ?? localMessage.seqLiteral,
           status: newStatus,
         );
         await _storage.updateMessage(updatedMessage);
@@ -1212,15 +1244,17 @@ class IMClient {
   /// 处理送达确认：接收方收到消息后，服务端通知发送方"已送达"
   void _handleDeliveryConfirmation(Map<String, dynamic> data) {
     try {
-      final mid = data['mid'];
+      final midKey = IdLiteral.text(data['mid']);
+      final mid = IdLiteral.asInt(data['mid']);
       if (mid == null) return;
 
-      _log.i('📦 [IMClient] 收到 delivery_confirmation, mid=$mid');
+      _log.i('📦 [IMClient] 收到 delivery_confirmation, mid=$midKey');
 
-      _storage.updateMessageDelivered(mid is int ? mid : int.parse(mid.toString())).then((_) async {
-        final localMessage = await _storage.getMessageByMid(
-          mid is int ? mid : int.parse(mid.toString()),
-        );
+      _storage.updateMessageDelivered(mid).then((_) async {
+        final localMessage = midKey == null
+            ? await _storage.getMessageByMid(mid)
+            : await _storage.getMessageByMidKey(midKey) ??
+                await _storage.getMessageByMid(mid);
         if (localMessage == null) {
           _log.w('⚠️ [IMClient] 未找到 mid=$mid 对应的本地消息（delivery_confirmation）');
           return;
@@ -1289,27 +1323,31 @@ class IMClient {
   }
 
   /// 发送送达回执：通知服务端"我已收到这条消息"（供外部调用）
-  void sendDeliveryAck(int mid) {
-    _sendDeliveryAck(mid);
+  void sendDeliveryAck(int mid, {String? midLiteral}) {
+    _sendDeliveryAck(mid, midLiteral: midLiteral);
   }
 
   /// 发送送达回执：通知服务端"我已收到这条消息"
-  void _sendDeliveryAck(int mid) {
+  void _sendDeliveryAck(int mid, {String? midLiteral}) {
+    final key = IdLiteral.isPositive(midLiteral)
+        ? midLiteral
+        : (mid > 0 ? mid.toString() : null);
+    if (key == null) return;
     try {
       if (!_connectionManager.isConnected) {
-        _log.d('📴 [IMClient] 网络未连接，跳过 delivery_ack: mid=$mid');
+        _log.d('📴 [IMClient] 网络未连接，跳过 delivery_ack: mid=$key');
         return;
       }
 
       _connectionManager.sendMessage({
         'type': 'delivery_ack',
-        'mids': [mid],
+        'mids': [key],
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       });
 
-      _log.i('📤 [IMClient] 已发送 delivery_ack, mid=$mid');
+      _log.i('📤 [IMClient] 已发送 delivery_ack, mid=$key');
     } catch (e) {
-      _log.e('❌ [IMClient] 发送 delivery_ack 失败, mid=$mid', error: e);
+      _log.e('❌ [IMClient] 发送 delivery_ack 失败, mid=$key', error: e);
     }
   }
 
@@ -1715,6 +1753,15 @@ class _FallbackStorage implements StorageInterface {
 
   @override
   Future<int?> getMaxSeq(int groupId) async => null;
+
+  @override
+  Future<String?> getMaxSeqLiteral(int groupId) async => null;
+
+  @override
+  Future<bool> saveIncomingMessage(Message message) async => false;
+
+  @override
+  Future<Message?> getMessageByMidKey(String midKey) async => null;
 
   @override
   Future<Message?> getMessageById(int messageId) async => null;

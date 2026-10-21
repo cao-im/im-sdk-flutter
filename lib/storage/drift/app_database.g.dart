@@ -31,6 +31,15 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _midRawMeta = const VerificationMeta('midRaw');
+  @override
+  late final GeneratedColumn<String> midRaw = GeneratedColumn<String>(
+    'mid_raw',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _seqMeta = const VerificationMeta('seq');
   @override
   late final GeneratedColumn<int> seq = GeneratedColumn<int>(
@@ -38,6 +47,15 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
     aliasedName,
     true,
     type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _seqRawMeta = const VerificationMeta('seqRaw');
+  @override
+  late final GeneratedColumn<String> seqRaw = GeneratedColumn<String>(
+    'seq_raw',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _fromIdMeta = const VerificationMeta('fromId');
@@ -207,7 +225,9 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
   List<GeneratedColumn> get $columns => [
     id,
     mid,
+    midRaw,
     seq,
+    seqRaw,
     fromId,
     toId,
     groupId,
@@ -245,10 +265,22 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         mid.isAcceptableOrUnknown(data['mid']!, _midMeta),
       );
     }
+    if (data.containsKey('mid_raw')) {
+      context.handle(
+        _midRawMeta,
+        midRaw.isAcceptableOrUnknown(data['mid_raw']!, _midRawMeta),
+      );
+    }
     if (data.containsKey('seq')) {
       context.handle(
         _seqMeta,
         seq.isAcceptableOrUnknown(data['seq']!, _seqMeta),
+      );
+    }
+    if (data.containsKey('seq_raw')) {
+      context.handle(
+        _seqRawMeta,
+        seqRaw.isAcceptableOrUnknown(data['seq_raw']!, _seqRawMeta),
       );
     }
     if (data.containsKey('from_id')) {
@@ -379,9 +411,17 @@ class $MessagesTable extends Messages with TableInfo<$MessagesTable, Message> {
         DriftSqlType.int,
         data['${effectivePrefix}mid'],
       )!,
+      midRaw: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mid_raw'],
+      ),
       seq: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}seq'],
+      ),
+      seqRaw: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}seq_raw'],
       ),
       fromId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -459,8 +499,14 @@ class Message extends DataClass implements Insertable<Message> {
   /// 消息全局唯一ID(雪花算法生成，0表示待分配)
   final int mid;
 
+  /// mid 的十进制原文。Web 无法用 JSON 数字精确保存雪花 ID，去重以这个字段为准。
+  final String? midRaw;
+
   /// 服务端序号（完全由服务端生成，严格递增，用于增量离线同步）
   final int? seq;
+
+  /// seq 的十进制原文。群离线增量游标使用这个字段，避免 Web 精度丢失。
+  final String? seqRaw;
 
   /// 发送者用户ID
   final int fromId;
@@ -509,7 +555,9 @@ class Message extends DataClass implements Insertable<Message> {
   const Message({
     required this.id,
     required this.mid,
+    this.midRaw,
     this.seq,
+    this.seqRaw,
     required this.fromId,
     required this.toId,
     this.groupId,
@@ -531,8 +579,14 @@ class Message extends DataClass implements Insertable<Message> {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['mid'] = Variable<int>(mid);
+    if (!nullToAbsent || midRaw != null) {
+      map['mid_raw'] = Variable<String>(midRaw);
+    }
     if (!nullToAbsent || seq != null) {
       map['seq'] = Variable<int>(seq);
+    }
+    if (!nullToAbsent || seqRaw != null) {
+      map['seq_raw'] = Variable<String>(seqRaw);
     }
     map['from_id'] = Variable<int>(fromId);
     map['to_id'] = Variable<int>(toId);
@@ -568,7 +622,13 @@ class Message extends DataClass implements Insertable<Message> {
     return MessagesCompanion(
       id: Value(id),
       mid: Value(mid),
+      midRaw: midRaw == null && nullToAbsent
+          ? const Value.absent()
+          : Value(midRaw),
       seq: seq == null && nullToAbsent ? const Value.absent() : Value(seq),
+      seqRaw: seqRaw == null && nullToAbsent
+          ? const Value.absent()
+          : Value(seqRaw),
       fromId: Value(fromId),
       toId: Value(toId),
       groupId: groupId == null && nullToAbsent
@@ -607,7 +667,9 @@ class Message extends DataClass implements Insertable<Message> {
     return Message(
       id: serializer.fromJson<int>(json['id']),
       mid: serializer.fromJson<int>(json['mid']),
+      midRaw: serializer.fromJson<String?>(json['midRaw']),
       seq: serializer.fromJson<int?>(json['seq']),
+      seqRaw: serializer.fromJson<String?>(json['seqRaw']),
       fromId: serializer.fromJson<int>(json['fromId']),
       toId: serializer.fromJson<int>(json['toId']),
       groupId: serializer.fromJson<int?>(json['groupId']),
@@ -631,7 +693,9 @@ class Message extends DataClass implements Insertable<Message> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'mid': serializer.toJson<int>(mid),
+      'midRaw': serializer.toJson<String?>(midRaw),
       'seq': serializer.toJson<int?>(seq),
+      'seqRaw': serializer.toJson<String?>(seqRaw),
       'fromId': serializer.toJson<int>(fromId),
       'toId': serializer.toJson<int>(toId),
       'groupId': serializer.toJson<int?>(groupId),
@@ -653,7 +717,9 @@ class Message extends DataClass implements Insertable<Message> {
   Message copyWith({
     int? id,
     int? mid,
+    Value<String?> midRaw = const Value.absent(),
     Value<int?> seq = const Value.absent(),
+    Value<String?> seqRaw = const Value.absent(),
     int? fromId,
     int? toId,
     Value<int?> groupId = const Value.absent(),
@@ -672,7 +738,9 @@ class Message extends DataClass implements Insertable<Message> {
   }) => Message(
     id: id ?? this.id,
     mid: mid ?? this.mid,
+    midRaw: midRaw.present ? midRaw.value : this.midRaw,
     seq: seq.present ? seq.value : this.seq,
+    seqRaw: seqRaw.present ? seqRaw.value : this.seqRaw,
     fromId: fromId ?? this.fromId,
     toId: toId ?? this.toId,
     groupId: groupId.present ? groupId.value : this.groupId,
@@ -695,7 +763,9 @@ class Message extends DataClass implements Insertable<Message> {
     return Message(
       id: data.id.present ? data.id.value : this.id,
       mid: data.mid.present ? data.mid.value : this.mid,
+      midRaw: data.midRaw.present ? data.midRaw.value : this.midRaw,
       seq: data.seq.present ? data.seq.value : this.seq,
+      seqRaw: data.seqRaw.present ? data.seqRaw.value : this.seqRaw,
       fromId: data.fromId.present ? data.fromId.value : this.fromId,
       toId: data.toId.present ? data.toId.value : this.toId,
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
@@ -727,7 +797,9 @@ class Message extends DataClass implements Insertable<Message> {
     return (StringBuffer('Message(')
           ..write('id: $id, ')
           ..write('mid: $mid, ')
+          ..write('midRaw: $midRaw, ')
           ..write('seq: $seq, ')
+          ..write('seqRaw: $seqRaw, ')
           ..write('fromId: $fromId, ')
           ..write('toId: $toId, ')
           ..write('groupId: $groupId, ')
@@ -751,7 +823,9 @@ class Message extends DataClass implements Insertable<Message> {
   int get hashCode => Object.hash(
     id,
     mid,
+    midRaw,
     seq,
+    seqRaw,
     fromId,
     toId,
     groupId,
@@ -774,7 +848,9 @@ class Message extends DataClass implements Insertable<Message> {
       (other is Message &&
           other.id == this.id &&
           other.mid == this.mid &&
+          other.midRaw == this.midRaw &&
           other.seq == this.seq &&
+          other.seqRaw == this.seqRaw &&
           other.fromId == this.fromId &&
           other.toId == this.toId &&
           other.groupId == this.groupId &&
@@ -795,7 +871,9 @@ class Message extends DataClass implements Insertable<Message> {
 class MessagesCompanion extends UpdateCompanion<Message> {
   final Value<int> id;
   final Value<int> mid;
+  final Value<String?> midRaw;
   final Value<int?> seq;
+  final Value<String?> seqRaw;
   final Value<int> fromId;
   final Value<int> toId;
   final Value<int?> groupId;
@@ -814,7 +892,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   const MessagesCompanion({
     this.id = const Value.absent(),
     this.mid = const Value.absent(),
+    this.midRaw = const Value.absent(),
     this.seq = const Value.absent(),
+    this.seqRaw = const Value.absent(),
     this.fromId = const Value.absent(),
     this.toId = const Value.absent(),
     this.groupId = const Value.absent(),
@@ -834,7 +914,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   MessagesCompanion.insert({
     this.id = const Value.absent(),
     this.mid = const Value.absent(),
+    this.midRaw = const Value.absent(),
     this.seq = const Value.absent(),
+    this.seqRaw = const Value.absent(),
     required int fromId,
     required int toId,
     this.groupId = const Value.absent(),
@@ -859,7 +941,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   static Insertable<Message> custom({
     Expression<int>? id,
     Expression<int>? mid,
+    Expression<String>? midRaw,
     Expression<int>? seq,
+    Expression<String>? seqRaw,
     Expression<int>? fromId,
     Expression<int>? toId,
     Expression<int>? groupId,
@@ -879,7 +963,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (mid != null) 'mid': mid,
+      if (midRaw != null) 'mid_raw': midRaw,
       if (seq != null) 'seq': seq,
+      if (seqRaw != null) 'seq_raw': seqRaw,
       if (fromId != null) 'from_id': fromId,
       if (toId != null) 'to_id': toId,
       if (groupId != null) 'group_id': groupId,
@@ -901,7 +987,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
   MessagesCompanion copyWith({
     Value<int>? id,
     Value<int>? mid,
+    Value<String?>? midRaw,
     Value<int?>? seq,
+    Value<String?>? seqRaw,
     Value<int>? fromId,
     Value<int>? toId,
     Value<int?>? groupId,
@@ -921,7 +1009,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     return MessagesCompanion(
       id: id ?? this.id,
       mid: mid ?? this.mid,
+      midRaw: midRaw ?? this.midRaw,
       seq: seq ?? this.seq,
+      seqRaw: seqRaw ?? this.seqRaw,
       fromId: fromId ?? this.fromId,
       toId: toId ?? this.toId,
       groupId: groupId ?? this.groupId,
@@ -949,8 +1039,14 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     if (mid.present) {
       map['mid'] = Variable<int>(mid.value);
     }
+    if (midRaw.present) {
+      map['mid_raw'] = Variable<String>(midRaw.value);
+    }
     if (seq.present) {
       map['seq'] = Variable<int>(seq.value);
+    }
+    if (seqRaw.present) {
+      map['seq_raw'] = Variable<String>(seqRaw.value);
     }
     if (fromId.present) {
       map['from_id'] = Variable<int>(fromId.value);
@@ -1005,7 +1101,9 @@ class MessagesCompanion extends UpdateCompanion<Message> {
     return (StringBuffer('MessagesCompanion(')
           ..write('id: $id, ')
           ..write('mid: $mid, ')
+          ..write('midRaw: $midRaw, ')
           ..write('seq: $seq, ')
+          ..write('seqRaw: $seqRaw, ')
           ..write('fromId: $fromId, ')
           ..write('toId: $toId, ')
           ..write('groupId: $groupId, ')
@@ -3094,7 +3192,9 @@ typedef $$MessagesTableCreateCompanionBuilder =
     MessagesCompanion Function({
       Value<int> id,
       Value<int> mid,
+      Value<String?> midRaw,
       Value<int?> seq,
+      Value<String?> seqRaw,
       required int fromId,
       required int toId,
       Value<int?> groupId,
@@ -3115,7 +3215,9 @@ typedef $$MessagesTableUpdateCompanionBuilder =
     MessagesCompanion Function({
       Value<int> id,
       Value<int> mid,
+      Value<String?> midRaw,
       Value<int?> seq,
+      Value<String?> seqRaw,
       Value<int> fromId,
       Value<int> toId,
       Value<int?> groupId,
@@ -3152,8 +3254,18 @@ class $$MessagesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get midRaw => $composableBuilder(
+    column: $table.midRaw,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get seq => $composableBuilder(
     column: $table.seq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get seqRaw => $composableBuilder(
+    column: $table.seqRaw,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3252,8 +3364,18 @@ class $$MessagesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get midRaw => $composableBuilder(
+    column: $table.midRaw,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get seq => $composableBuilder(
     column: $table.seq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get seqRaw => $composableBuilder(
+    column: $table.seqRaw,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -3348,8 +3470,14 @@ class $$MessagesTableAnnotationComposer
   GeneratedColumn<int> get mid =>
       $composableBuilder(column: $table.mid, builder: (column) => column);
 
+  GeneratedColumn<String> get midRaw =>
+      $composableBuilder(column: $table.midRaw, builder: (column) => column);
+
   GeneratedColumn<int> get seq =>
       $composableBuilder(column: $table.seq, builder: (column) => column);
+
+  GeneratedColumn<String> get seqRaw =>
+      $composableBuilder(column: $table.seqRaw, builder: (column) => column);
 
   GeneratedColumn<int> get fromId =>
       $composableBuilder(column: $table.fromId, builder: (column) => column);
@@ -3435,7 +3563,9 @@ class $$MessagesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int> mid = const Value.absent(),
+                Value<String?> midRaw = const Value.absent(),
                 Value<int?> seq = const Value.absent(),
+                Value<String?> seqRaw = const Value.absent(),
                 Value<int> fromId = const Value.absent(),
                 Value<int> toId = const Value.absent(),
                 Value<int?> groupId = const Value.absent(),
@@ -3454,7 +3584,9 @@ class $$MessagesTableTableManager
               }) => MessagesCompanion(
                 id: id,
                 mid: mid,
+                midRaw: midRaw,
                 seq: seq,
+                seqRaw: seqRaw,
                 fromId: fromId,
                 toId: toId,
                 groupId: groupId,
@@ -3475,7 +3607,9 @@ class $$MessagesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int> mid = const Value.absent(),
+                Value<String?> midRaw = const Value.absent(),
                 Value<int?> seq = const Value.absent(),
+                Value<String?> seqRaw = const Value.absent(),
                 required int fromId,
                 required int toId,
                 Value<int?> groupId = const Value.absent(),
@@ -3494,7 +3628,9 @@ class $$MessagesTableTableManager
               }) => MessagesCompanion.insert(
                 id: id,
                 mid: mid,
+                midRaw: midRaw,
                 seq: seq,
+                seqRaw: seqRaw,
                 fromId: fromId,
                 toId: toId,
                 groupId: groupId,

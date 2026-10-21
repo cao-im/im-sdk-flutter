@@ -6,6 +6,12 @@ abstract class StorageInterface {
 
   Future<int> insertMessage(Message message);
 
+  /// 保存收到的消息。本地已有同一条 mid 时返回 false，并且不会再插一行。
+  Future<bool> saveIncomingMessage(Message message);
+
+  /// 按 mid 原文查找。数字和字符串两种形式都能命中。
+  Future<Message?> getMessageByMidKey(String midKey);
+
   /// 在本地消息里按文本或文件名搜索。数据库已按用户隔离。
   Future<List<Message>> searchMessages({
     required String keyword,
@@ -25,6 +31,9 @@ abstract class StorageInterface {
 
   /// 查询指定群组中消息的最大 seq（用于离线增量同步的 sinceSeq 基准）
   Future<int?> getMaxSeq(int groupId);
+
+  /// 群内最大 seq 的十进制原文。没有记录时返回 null。
+  Future<String?> getMaxSeqLiteral(int groupId);
 
   Future<Message?> getMessageById(int messageId);
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../model/message.dart';
 import '../model/conversation.dart';
+import '../utils/id_literal.dart';
 import 'storage_interface.dart';
 
 class WebStorage implements StorageInterface {
@@ -64,6 +65,43 @@ class WebStorage implements StorageInterface {
     messages.add(messageMap);
     await _saveMessagesList(prefs, messages);
     return messageMap['id'] as int;
+  }
+
+  @override
+  Future<bool> saveIncomingMessage(Message message) async {
+    final existing = await _findStoredMessage(message.midKey);
+    if (existing != null) return false;
+    await insertMessage(message);
+    return true;
+  }
+
+  Future<Message?> _findStoredMessage(String? midKey) async {
+    if (midKey == null || !IdLiteral.isPositive(midKey)) return null;
+    final prefs = await _preferences;
+    final messages = _getMessagesList(prefs);
+    final legacy = IdLiteral.asInt(midKey);
+    for (final map in messages) {
+      if (map['mid_raw']?.toString() == midKey) return _mapToMessage(map);
+      if (legacy != null && legacy > 0 && map['mid'] == legacy) return _mapToMessage(map);
+    }
+    return null;
+  }
+
+  @override
+  Future<Message?> getMessageByMidKey(String midKey) => _findStoredMessage(midKey);
+
+  @override
+  Future<String?> getMaxSeqLiteral(int groupId) async {
+    final prefs = await _preferences;
+    final literals = <String?>[];
+    for (final map in _getMessagesList(prefs).where((m) => m['group_id'] == groupId)) {
+      literals.add(map['seq_raw']?.toString());
+      final seq = map['seq'];
+      if (seq is int && seq > 0) literals.add(seq.toString());
+    }
+    final maxLiteral = IdLiteral.maxOf(literals);
+    if (!IdLiteral.isPositive(maxLiteral)) return null;
+    return maxLiteral;
   }
 
   @override
@@ -378,7 +416,9 @@ class WebStorage implements StorageInterface {
     return {
       'id': message.id,
       'mid': message.mid,
+      'mid_raw': message.midKey,
       'seq': message.seq,
+      'seq_raw': message.seqKey,
       'from_id': message.fromId,
       'to_id': message.toId,
       'group_id': message.groupId,
@@ -398,8 +438,8 @@ class WebStorage implements StorageInterface {
   Message _mapToMessage(Map<String, dynamic> map) {
     return Message.fromJson({
       'id': map['id'],
-      'mid': map['mid'],
-      'seq': map['seq'],
+      'mid': map['mid_raw'] ?? map['mid'],
+      'seq': map['seq_raw'] ?? map['seq'],
       'fromId': map['from_id'],
       'toId': map['to_id'],
       'groupId': map['group_id'],
