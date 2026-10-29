@@ -112,7 +112,48 @@ class ConnectionManager {
 
   static const int _connectTimeoutSeconds = 10;
 
-  Future<void> connect(String serverUrl, String token) async {
+  /// 连接前按 userId 请求 /api/route（野火粘滞路由）。失败则回退原 serverUrl。
+  Future<String> resolveRoutedWsUrl(
+    String entryHttpOrWsUrl,
+    String token,
+    int userId,
+  ) async {
+    try {
+      final base = Uri.parse(_enforcePort(entryHttpOrWsUrl));
+      final routeUri = base.replace(
+        scheme: base.scheme == 'wss' || base.scheme == 'https' ? 'https' : 'http',
+        path: '/api/route',
+        queryParameters: {'userId': '$userId'},
+      );
+      final httpClient = HttpClient();
+      httpClient.connectionTimeout = const Duration(seconds: 5);
+      final request = await httpClient.getUrl(routeUri);
+      request.headers.set('Authorization', 'Bearer $token');
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final body = jsonDecode(await response.transform(utf8.decoder).join());
+        final data = body['data'] as Map<String, dynamic>?;
+        final preferWss = base.scheme == 'wss' || base.scheme == 'https';
+        final routed = preferWss
+            ? (data?['wssUrl'] as String? ?? '')
+            : (data?['wsUrl'] as String? ?? '');
+        final fallback = data?['wsUrl'] as String? ?? '';
+        httpClient.close();
+        final chosen = (routed.isNotEmpty ? routed : fallback);
+        if (chosen.isNotEmpty) {
+          _log.i('Route 命中 nodeId=${data?['nodeId']} url=$chosen');
+          return chosen;
+        }
+      } else {
+        httpClient.close();
+      }
+    } catch (e) {
+      _log.w('Route 失败，回退入口地址: $e');
+    }
+    return _enforcePort(entryHttpOrWsUrl);
+  }
+
+  Future<void> connect(String serverUrl, String token, {int? userId}) async {
     print('');
     print('📍[ConnMgr] ====== connect() 开始 ======');
     print('📍[ConnMgr] 当前状态: $_status');
@@ -123,7 +164,11 @@ class ConnectionManager {
       return;
     }
 
-    _serverUrl = _enforcePort(serverUrl);
+    var target = _enforcePort(serverUrl);
+    if (userId != null) {
+      target = await resolveRoutedWsUrl(serverUrl, token, userId);
+    }
+    _serverUrl = target;
     _token = token;
     print('📍[ConnMgr] 强制端口后 serverUrl: $_serverUrl');
 
