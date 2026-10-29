@@ -29,3 +29,6 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 /build/
 /coverage/
+
+# 本地一次性脚本
+_fix_readme.py
