@@ -1318,6 +1318,7 @@ class IMClient {
       callId: data['callId']?.toString(),
       peerId: _asInt(data['peerId']),
       name: data['name']?.toString(),
+      avatar: data['avatar']?.toString(),
       reason: data['reason']?.toString(),
       video: data['video'] == true,
       payload: payload is Map ? Map<String, dynamic>.from(payload) : const {},

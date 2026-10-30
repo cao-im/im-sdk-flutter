@@ -56,6 +56,7 @@ class CallSignalEvent extends IMEvent {
   final String? callId;
   final int? peerId;
   final String? name;
+  final String? avatar;
   final String? reason;
   final bool video;
   final Map<String, dynamic> payload;
@@ -65,6 +66,7 @@ class CallSignalEvent extends IMEvent {
     this.callId,
     this.peerId,
     this.name,
+    this.avatar,
     this.reason,
     this.video = false,
     this.payload = const {},
