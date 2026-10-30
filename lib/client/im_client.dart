@@ -129,6 +129,7 @@ class IMClient {
   StreamSubscription? _messageSub;
   StreamSubscription? _reconnectSub;
   ReconnectManager? _reconnectManager;
+  bool _suppressReconnect = false;
 
   MessageServiceImpl get messageService => _messageService;
   ConversationServiceImpl get conversationService => _conversationService;
@@ -281,6 +282,7 @@ class IMClient {
 
     // 新一次登录/连接：清除认证失效标记，允许重连
     _authExpiredHandled = false;
+    _suppressReconnect = false;
     _reconnectManager?.reset(logReset: false);
 
     print('📍[IMClient] 设置Token到TokenManager...');
@@ -322,101 +324,104 @@ class IMClient {
     // 📝 初始化已读回执管理器（支持断网缓存+重连补发）
     _initReadReceiptManager();
 
+    _ensureReconnectManager();
+
     try {
       print('📍[IMClient] ConnectionManager.connect(serverUrl, token)...');
-      await _connectionManager.connect(serverUrl, token);
+      await _connectionManager.connect(serverUrl, token, userId: currentUserId);
       print('✅[IMClient] ConnectionManager.connect() 返回成功');
+      _afterSocketReady();
+    } on IMException {
+      rethrow;
+    } catch (e) {
+      // 端口拒绝时也留下重连定时器，服务起来后会自己连上。
+      throw Exception('连接失败: $e');
+    }
+  }
 
-      // 🛡️ 连接成功后启动进程保活（前台服务/Audio Session/Wakelock）
-      _startKeepAlive();
+  void _ensureReconnectManager() {
+    if (_reconnectManager != null) {
+      return;
+    }
+    print('📍[IMClient] 初始化 ReconnectManager...');
+    _reconnectManager = ReconnectManager(
+      maxRetries: _config.maxRetries,
+      infiniteRetry: _config.enableInfiniteReconnect,
+      baseDelayMs: _config.reconnectBaseDelayMs,
+      maxDelayMs: _config.reconnectMaxDelayMs,
+      delayCalculator: _config.customReconnectDelayCalculator,
+      onReconnect: () async {
+        try {
+          print('🔄[IMClient] ReconnectManager执行重连回调, 重连前token长度: ${token.length}');
+          await _tokenManager.ensureValidTokenBeforeConnect();
+          token = _tokenManager.accessToken ?? token;
+          print('🔄[IMClient] 刷新后 token 长度: ${token.length} (若长度变化说明Token已刷新)');
+          await _connectionManager.connect(serverUrl, token, userId: currentUserId);
+          return _connectionManager.isConnected;
+        } on IMException catch (e) {
+          if (e.code == ErrorCode.authFailed) {
+            await _handleAuthExpired(e.message);
+            return false;
+          }
+          print('❌[IMClient] ReconnectManager 重连异常(IMException): $e');
+          return false;
+        } catch (e) {
+          print('❌[IMClient] ReconnectManager 重连异常: $e');
+          return false;
+        }
+      },
+      onReconnectSuccess: () {
+        print('✅[IMClient] ReconnectManager 重连成功回调');
+        _afterSocketReady();
+      },
+      onReconnectFailed: () {
+        print('❌[IMClient] ReconnectManager 重连失败回调 (已达最大次数)');
+        for (var listener in _connectionListeners) {
+          listener.onReconnectFailed();
+        }
+      },
+      onStatusChange: (isReconnecting) {
+        for (var listener in _connectionListeners) {
+          listener.onReconnectingStateChanged(isReconnecting);
+        }
+      },
+      onReconnectAttempt: (info) {
+        print('🔄[IMClient] 重连尝试: $info');
+      },
+    );
+    print('✅[IMClient] ReconnectManager初始化完成, 最大重试:${_config.maxRetries}次, 无限重试:${_config.enableInfiniteReconnect}, 基础延迟:${_config.reconnectBaseDelayMs}ms, 最大延迟:${_config.reconnectMaxDelayMs}ms');
 
-      if (currentUserId != null) {
+    _reconnectSub = _connectionManager.onStatusChanged.listen((status) {
+      print('🔗[IMClient] 连接状态变更: $status');
+
+      if (_suppressReconnect || _authExpiredHandled || (_reconnectManager?.isAborted ?? false)) {
+        print('⏭️[IMClient] 跳过自动重连');
+        return;
+      }
+
+      if (status == ConnectionStatus.disconnected && currentUserId != null) {
+        const reason = '连接状态变为 disconnected';
+        print('📢[IMClient] 触发自动重连, 原因: $reason');
+        _reconnectManager?.scheduleReconnect(reason: reason);
+      }
+    });
+  }
+
+  void _afterSocketReady() {
+    _startKeepAlive();
+    if (currentUserId != null) {
+      if (_hybridSync == null) {
         print('📍[IMClient] 初始化 HybridSync (微信模式)...');
         _initHybridSync();
         print('✅[IMClient] HybridSync 初始化完成');
       } else {
-        print('⚠️[IMClient] currentUserId 为空，跳过 HybridSync');
+        _hybridSync!.start();
+        _hybridSync!.syncNow();
       }
-
-      if (_reconnectManager == null) {
-        print('📍[IMClient] 初始化 ReconnectManager...');
-        _reconnectManager = ReconnectManager(
-          maxRetries: _config.maxRetries,
-          infiniteRetry: _config.enableInfiniteReconnect,
-          baseDelayMs: _config.reconnectBaseDelayMs,
-          maxDelayMs: _config.reconnectMaxDelayMs,
-          delayCalculator: _config.customReconnectDelayCalculator,
-          onReconnect: () async {
-            try {
-              print('🔄[IMClient] ReconnectManager执行重连回调, 重连前token长度: ${token.length}');
-              // 🔑 重连前先检查并刷新 Token（修复：避免使用已过期的旧 Token）
-              await _tokenManager.ensureValidTokenBeforeConnect();
-              token = _tokenManager.accessToken ?? token;
-              print('🔄[IMClient] 刷新后 token 长度: ${token.length} (若长度变化说明Token已刷新)');
-              await _connectionManager.connect(serverUrl, token);
-              return true;
-            } on IMException catch (e) {
-              if (e.code == ErrorCode.authFailed) {
-                await _handleAuthExpired(e.message);
-                return false;
-              }
-              print('❌[IMClient] ReconnectManager 重连异常(IMException): $e');
-              return false;
-            } catch (e) {
-              print('❌[IMClient] ReconnectManager 重连异常: $e');
-              return false;
-            }
-          },
-          onReconnectSuccess: () {
-            print('✅[IMClient] ReconnectManager 重连成功回调');
-            // 🛡️ 重连成功后重新启动保活
-            _startKeepAlive();
-            if (_hybridSync != null) {
-              _hybridSync!.start();
-              _hybridSync!.syncNow();
-            }
-            // 🔄 重连成功后自动补发缓存的已读回执
-            _readReceiptManager?.flushPendingReceipts();
-          },
-          onReconnectFailed: () {
-            print('❌[IMClient] ReconnectManager 重连失败回调 (已达最大次数)');
-            for (var listener in _connectionListeners) {
-              listener.onReconnectFailed();
-            }
-          },
-          onStatusChange: (isReconnecting) {
-            for (var listener in _connectionListeners) {
-              listener.onReconnectingStateChanged(isReconnecting);
-            }
-          },
-          onReconnectAttempt: (info) {
-            print('🔄[IMClient] 重连尝试: $info');
-          },
-        );
-        print('✅[IMClient] ReconnectManager初始化完成, 最大重试:${_config.maxRetries}次, 无限重试:${_config.enableInfiniteReconnect}, 基础延迟:${_config.reconnectBaseDelayMs}ms, 最大延迟:${_config.reconnectMaxDelayMs}ms');
-
-        _reconnectSub = _connectionManager.onStatusChanged.listen((status) {
-          print('🔗[IMClient] 连接状态变更: $status');
-
-          if (_authExpiredHandled || (_reconnectManager?.isAborted ?? false)) {
-            print('⏭️[IMClient] 认证已失效，跳过自动重连');
-            return;
-          }
-
-          if (status == ConnectionStatus.disconnected && currentUserId != null) {
-            final reason = '连接状态变为 disconnected';
-            print('📢[IMClient] 触发自动重连, 原因: $reason');
-            _reconnectManager?.scheduleReconnect(reason: reason);
-          }
-        });
-      } else {
-        print('ℹ️[IMClient] ReconnectManager 已存在，跳过初始化');
-      }
-    } on IMException {
-      rethrow;
-    } catch (e) {
-      throw Exception('连接失败: $e');
+    } else {
+      print('⚠️[IMClient] currentUserId 为空，跳过 HybridSync');
     }
+    _readReceiptManager?.flushPendingReceipts();
   }
 
   /// Token 永久失效：停止重连并通知宿主引导重新登录
@@ -449,9 +454,11 @@ class IMClient {
   }
 
   Future<void> disconnect() async {
+    _suppressReconnect = true;
     _stopKeepAlive();
     _stopHybridSync();
     _reconnectManager?.cancel();
+    currentUserId = null;
     _connectionManager.disconnect();
 
     // 🗑️ 清理回执管理器
@@ -459,7 +466,6 @@ class IMClient {
     _readReceiptManager = null;
 
     token = '';
-    currentUserId = null;
     _authExpiredHandled = false;
 
     StorageFactory.reset();

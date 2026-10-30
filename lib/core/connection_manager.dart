@@ -35,6 +35,33 @@ class ConnectionManager {
   ConnectionStatus get status => _status;
   bool get isConnected => _status == ConnectionStatus.connected;
 
+  /// 用登录令牌换一张 60 秒、只用一次的连接票据。换不到时退回把令牌放进地址。
+  Future<String?> _fetchWsTicket(String wsUrl, String token) async {
+    final ws = Uri.parse(wsUrl);
+    if (!ws.path.endsWith('/ws')) return null;
+    final httpUri = ws.replace(
+      scheme: ws.scheme == 'wss' ? 'https' : 'http',
+      path: '${ws.path.substring(0, ws.path.length - 3)}/ws-ticket',
+      query: '',
+    );
+    final client = HttpClient();
+    try {
+      final request = await client.getUrl(httpUri).timeout(const Duration(seconds: 5));
+      request.headers.set('Authorization', 'Bearer $token');
+      final response = await request.close().timeout(const Duration(seconds: 5));
+      if (response.statusCode != 200) return null;
+      final body = jsonDecode(await response.transform(utf8.decoder).join());
+      final data = body is Map ? body['data'] : null;
+      final ticket = data is Map ? data['ticket'] : null;
+      if (ticket is String && ticket.isNotEmpty) return ticket;
+    } catch (e) {
+      _log.w('获取连接票据失败，改用登录令牌: $e');
+    } finally {
+      client.close(force: true);
+    }
+    return null;
+  }
+
   String _enforcePort(String serverUrl) {
     final uri = Uri.parse(serverUrl);
     final port = _customPort ?? (uri.hasPort ? uri.port : _defaultPort);
@@ -185,8 +212,11 @@ class ConnectionManager {
     }
 
     try {
-      final uri = Uri.parse('$_serverUrl?token=$token');
-      print('📍[ConnMgr] [步骤2/4] 构建WebSocket URI: $uri');
+      final ticket = await _fetchWsTicket(_serverUrl, token);
+      final uri = Uri.parse(_serverUrl).replace(
+        queryParameters: ticket != null ? {'ticket': ticket} : {'token': token},
+      );
+      print('📍[ConnMgr] [步骤2/4] 构建WebSocket URI: ${uri.replace(query: ticket != null ? 'ticket=***' : 'token=***')}');
       print('📍[ConnMgr] [步骤3/4] 调用 WebSocketChannel.connect()...');
 
       final startTime = DateTime.now();
@@ -334,10 +364,16 @@ class ConnectionManager {
   }
 
   void _handleDisconnection() {
-    if (_status == ConnectionStatus.connected) {
-      _heartbeatManager.stop();
-      _updateStatus(ConnectionStatus.disconnected);
+    if (_status != ConnectionStatus.connected) {
+      return;
     }
+    _heartbeatManager.stop();
+    final channel = _channel;
+    _channel = null;
+    _updateStatus(ConnectionStatus.disconnected);
+    try {
+      channel?.sink.close();
+    } catch (_) {}
   }
 
   void _updateStatus(ConnectionStatus newStatus) {
