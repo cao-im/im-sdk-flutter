@@ -179,6 +179,27 @@ class WebStorage implements StorageInterface {
   }
 
   @override
+  Future<Message?> findRecentGroupMention({
+    required int groupId,
+    required int userId,
+    required int recentLimit,
+  }) async {
+    if (groupId <= 0 || userId <= 0 || recentLimit <= 0) return null;
+    final prefs = await _preferences;
+    final messages = _getMessagesList(prefs)
+        .where((item) => item['group_id'] == groupId)
+        .toList()
+      ..sort((a, b) => ((b['timestamp'] as int?) ?? 0).compareTo((a['timestamp'] as int?) ?? 0));
+    for (final map in messages.take(recentLimit)) {
+      final message = _mapToMessage(map);
+      if (message.mentionsUser(userId) && message.fromId != userId) {
+        return message;
+      }
+    }
+    return null;
+  }
+
+  @override
   Future<Message?> getLastMessage(int targetId, {int? groupId}) async {
     final prefs = await _preferences;
     var messages = _getMessagesList(prefs);

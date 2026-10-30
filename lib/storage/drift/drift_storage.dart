@@ -248,6 +248,27 @@ class DriftStorage implements StorageInterface {
   }
 
   @override
+  Future<model.Message?> findRecentGroupMention({
+    required int groupId,
+    required int userId,
+    required int recentLimit,
+  }) async {
+    if (groupId <= 0 || userId <= 0 || recentLimit <= 0) return null;
+    final rows = await (_db.select(_db.messages)
+          ..where((tbl) => tbl.groupId.equals(groupId))
+          ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+          ..limit(recentLimit))
+        .get();
+    for (final row in rows) {
+      final message = _toMessage(row);
+      if (message.mentionsUser(userId) && message.fromId != userId) {
+        return message;
+      }
+    }
+    return null;
+  }
+
+  @override
   Future<int?> getMaxSeq(int groupId) async {
     // 查询该群所有消息中 seq 的最大值（忽略 NULL）
     final rows = await (_db.selectOnly(_db.messages)

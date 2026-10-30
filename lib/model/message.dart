@@ -101,6 +101,13 @@ class Message {
     this.atUserIds,
   }) : timestamp = timestamp ?? DateTime.now().millisecondsSinceEpoch;
 
+  bool mentionsUser(int userId) {
+    if (userId <= 0 || atUserIds == null || atUserIds!.isEmpty) return false;
+    return atUserIds!
+        .split(',')
+        .any((item) => int.tryParse(item.trim()) == userId);
+  }
+
   factory Message.fromJson(Map<String, dynamic> json) {
     print('📥 [Message.fromJson] 原始JSON: $json');
     

@@ -120,6 +120,13 @@ class ApiStorage implements StorageInterface {
   }
 
   @override
+  Future<model.Message?> findRecentGroupMention({
+    required int groupId,
+    required int userId,
+    required int recentLimit,
+  }) async => null;
+
+  @override
   Future<bool> saveIncomingMessage(model.Message message) async {
     final existing = await getMessageByMidKey(message.midKey ?? '');
     if (existing != null) return false;

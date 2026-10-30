@@ -35,6 +35,13 @@ abstract class StorageInterface {
 
   Future<Message?> getLastMessage(int targetId, {int? groupId});
 
+  /// 最近若干条群消息里，最新一条 @ 到指定用户的消息。
+  Future<Message?> findRecentGroupMention({
+    required int groupId,
+    required int userId,
+    required int recentLimit,
+  });
+
   /// 查询指定群组中消息的最大 seq（用于离线增量同步的 sinceSeq 基准）
   Future<int?> getMaxSeq(int groupId);
 

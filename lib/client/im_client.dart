@@ -635,6 +635,19 @@ class IMClient {
     );
   }
 
+  /// 未读范围内最新一条 @ 到我的群消息。
+  Future<Message?> findRecentGroupMention({
+    required int groupId,
+    required int userId,
+    required int recentLimit,
+  }) {
+    return _storage.findRecentGroupMention(
+      groupId: groupId,
+      userId: userId,
+      recentLimit: recentLimit,
+    );
+  }
+
   Future<List<Message>> listMediaMessages({int limit = 500}) {
     return _storage.listMediaMessages(limit: limit);
   }
@@ -1759,6 +1772,13 @@ class _FallbackStorage implements StorageInterface {
 
   @override
   Future<Message?> getLastMessage(int targetId, {int? groupId}) async => null;
+
+  @override
+  Future<Message?> findRecentGroupMention({
+    required int groupId,
+    required int userId,
+    required int recentLimit,
+  }) async => null;
 
   @override
   Future<int?> getMaxSeq(int groupId) async => null;
